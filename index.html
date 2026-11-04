@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Le Pire Dev — Candidat</title>
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #FFFFFF;
+            height: 100vh;
+            overflow: hidden;
+            color: #111;
+        }
+
+        /* ========== Modal d'autorisation initiale (requis pour le partage d'écran) ========== */
+        #permissionModal {
+            position: fixed;
+            inset: 0;
+            background: rgba(255, 255, 255, 0.97);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            padding: 30px;
+            text-align: center;
+        }
+        #permissionModal .icon { font-size: 64px; margin-bottom: 20px; }
+        #permissionModal h2 {
+            color: #0000ac;
+            font-size: 28px;
+            font-weight: 800;
+            margin-bottom: 14px;
+        }
+        #permissionModal p {
+            color: #444;
+            font-size: 16px;
+            max-width: 520px;
+            line-height: 1.6;
+            margin-bottom: 30px;
+        }
+        .btn-authorize {
+            background: #0000ac;
+            color: #fff;
+            border: none;
+            padding: 16px 48px;
+            font-size: 18px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-weight: 700;
+            box-shadow: 0 6px 20px rgba(0, 0, 172, 0.25);
+            transition: all .2s;
+        }
+        .btn-authorize:hover {
+            opacity: 0.9;
+            transform: translateY(-2px);
+        }
+        .shortcut-hint {
+            margin-top: 18px;
+            color: #777;
+            font-size: 13px;
+        }
+        .shortcut-hint kbd {
+            background: #eee;
+            border: 1px solid #ccc;
+            padding: 2px 7px;
+            border-radius: 4px;
+            font-weight: 700;
+            color: #0000ac;
+        }
+
+        /* ========== Écran Bloquant (Refus partage d'écran) ========== */
+        #blockingOverlay {
+            position: fixed;
+            inset: 0;
+            background: #FFFFFF;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 3000;
+            padding: 40px;
+            text-align: center;
+        }
+        #blockingOverlay .icon { font-size: 72px; margin-bottom: 24px; }
+        #blockingOverlay h2 {
+            color: #0000ac;
+            font-size: 26px;
+            font-weight: 700;
+            margin-bottom: 16px;
+        }
+        #blockingOverlay p {
+            color: #555;
+            font-size: 16px;
+            line-height: 1.7;
+            max-width: 520px;
+            margin-bottom: 32px;
+        }
+        #blockingOverlay button {
+            background: #0000ac;
+            color: #fff;
+            border: none;
+            padding: 14px 44px;
+            font-size: 16px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        /* ========== Écran 1 — Accueil / Attente (Bouton Se Connecter) ========== */
+        #screen1 {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            text-align: center;
+            padding: 40px;
+        }
+        .logo-tag {
+            display: inline-block;
+            background: #eef0ff;
+            color: #0000ac;
+            font-weight: 800;
+            font-size: 13px;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            padding: 6px 14px;
+            border-radius: 20px;
+            margin-bottom: 16px;
+            border: 1px solid rgba(0, 0, 172, 0.2);
+        }
+        #screen1 h1 {
+            color: #0000ac;
+            font-size: 40px;
+            font-weight: 900;
+            margin-bottom: 12px;
+            letter-spacing: -0.5px;
+        }
+        #screen1 .subtitle {
+            color: #666;
+            font-size: 17px;
+            max-width: 560px;
+            line-height: 1.5;
+            margin-bottom: 44px;
+        }
+
+        #btnConnect {
+            background: #0000ac;
+            color: #fff;
+            border: none;
+            padding: 22px 72px;
+            font-size: 22px;
+            border-radius: 16px;
+            cursor: pointer;
+            font-weight: 800;
+            transition: all .25s cubic-bezier(0.4, 0, 0.2, 1);
+            letter-spacing: 0.4px;
+            box-shadow: 0 10px 30px rgba(0, 0, 172, 0.28);
+        }
+        #btnConnect:hover:not(:disabled) {
+            opacity: 0.92;
+            transform: translateY(-3px) scale(1.02);
+            box-shadow: 0 14px 36px rgba(0, 0, 172, 0.35);
+        }
+        #btnConnect:active:not(:disabled) {
+            transform: translateY(0);
+        }
+        #btnConnect:disabled {
+            opacity: 0.55;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .status-container {
+            margin-top: 28px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+        }
+        .stream-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #0000ac;
+            background: #f0f2ff;
+            padding: 6px 16px;
+            border-radius: 30px;
+        }
+        .stream-badge .dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            background: #0000ac;
+            animation: pulse-dot 1.8s infinite;
+        }
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.3; transform: scale(0.8); }
+        }
+
+        #statusText {
+            color: #666;
+            font-size: 14px;
+            min-height: 20px;
+        }
+
+        /* ========== Écran 2 — En Direct (Appel) ========== */
+        #screen2 {
+            display: none;
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background: #000;
+        }
+
+        #remoteVideo {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            background: #000;
+        }
+
+        .live-tag {
+            position: absolute;
+            top: 20px;
+            left: 24px;
+            background: rgba(0, 0, 172, 0.85);
+            backdrop-filter: blur(8px);
+            color: #fff;
+            padding: 8px 18px;
+            border-radius: 30px;
+            font-size: 13px;
+            font-weight: 800;
+            letter-spacing: 1px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            z-index: 10;
+        }
+        .live-tag .red-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #ff3b30;
+            animation: pulse-dot 1.2s infinite;
+        }
+
+        .local-pip {
+            position: absolute;
+            bottom: 28px;
+            right: 28px;
+            width: 220px;
+            border: 3px solid #0000ac;
+            border-radius: 14px;
+            overflow: hidden;
+            box-shadow: 0 6px 30px rgba(0, 0, 0, 0.6);
+            z-index: 10;
+            background: #111;
+        }
+        .local-pip video {
+            width: 100%;
+            display: block;
+            transform: scaleX(-1);
+        }
+        .local-pip-label {
+            position: absolute;
+            bottom: 6px;
+            left: 8px;
+            background: rgba(0, 0, 0, 0.65);
+            color: #fff;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Modal d'autorisation initiale (nécessaire pour activer le partage d'écran) -->
+    <div id="permissionModal">
+        <div class="icon">👾</div>
+        <h2>Le Pire Dev</h2>
+        <p>
+            Veuillez autoriser l'accès à la <strong>caméra</strong>, au <strong>microphone</strong> et au <strong>partage d'écran</strong> pour démarrer l'application.
+        </p>
+        <button class="btn-authorize" onclick="authorizeAndConnect()">Autoriser et continuer</button>
+        <div class="shortcut-hint">
+            Astuce : Appuyez sur <kbd>F2</kbd> pour démarrer sans caméra ni micro.
+        </div>
+    </div>
+
+    <!-- Écran bloquant en cas de refus du partage d'écran -->
+    <div id="blockingOverlay">
+        <div class="icon">🖥️</div>
+        <h2>Partage d'écran obligatoire</h2>
+        <p>
+            L'activité <strong>Le Pire Dev</strong> nécessite le partage de votre écran complet.<br>
+            Veuillez réautoriser le partage d'écran, puis recharger la page.
+        </p>
+        <button onclick="location.reload()">Recharger la page</button>
+    </div>
+
+    <!-- Écran 1 — Accueil / Attente (Le bouton Se Connecter) -->
+    <div id="screen1">
+        <div class="logo-tag">Activité en direct</div>
+        <h1>Le Pire Dev</h1>
+        <p class="subtitle">
+            Prêt pour l'activité ? Cliquez sur le bouton ci-dessous pour démarrer.
+        </p>
+        <button id="btnConnect" onclick="startCall()">Se connecter</button>
+    </div>
+
+    <!-- Écran 2 — En direct (Appel lancé) -->
+    <div id="screen2">
+        <div class="live-tag">
+            <div class="red-dot"></div>
+            <span>LE PIRE DEV — EN DIRECT</span>
+        </div>
+        <video id="remoteVideo" autoplay playsinline></video>
+        <div class="local-pip">
+            <video id="localVideo" autoplay muted playsinline></video>
+            <div class="local-pip-label">Votre caméra</div>
+        </div>
+    </div>
+
+    <script>
+        // ===================================================================
+        //  Configuration
+        // ===================================================================
+        const HOST_ID = 'ETML-LePireDev-2026';
+
+        // ===================================================================
+        //  État
+        // ===================================================================
+        let cameraStream = null;
+        let screenStream = null;
+        let peer = null;
+        let dataConn = null;
+        let isStarted = false;       // true quand le candidat clique sur "Se connecter"
+        let noMediaMode = false;     // F2 = sans caméra ni micro
+        let isConnectedToHost = false;
+
+        // ===================================================================
+        //  F2 — Raccourci sans caméra/micro
+        // ===================================================================
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'F2') {
+                e.preventDefault();
+                noMediaMode = true;
+                setStatus('⚡ Mode sans caméra/micro activé (F2)');
+                // Si la modale est encore affichée, lancer l'autorisation avec F2
+                if (document.getElementById('permissionModal').style.display !== 'none') {
+                    authorizeAndConnect();
+                }
+            }
+        });
+
+        /** Crée un flux vidéo noir et un audio silencieux pour remplacer cam/mic */
+        function createDummyStream() {
+            var canvas = document.createElement('canvas');
+            canvas.width = 640;
+            canvas.height = 480;
+            var ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#111';
+            ctx.fillRect(0, 0, 640, 480);
+            var stream = canvas.captureStream(1); // 1 fps
+
+            try {
+                var audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                var oscillator = audioCtx.createOscillator();
+                var dst = oscillator.connect(audioCtx.createMediaStreamDestination());
+                oscillator.start();
+                var audioTrack = dst.stream.getAudioTracks()[0];
+                audioTrack.enabled = false;
+                stream.addTrack(audioTrack);
+            } catch (e) {
+                console.warn('AudioContext dummy track non créé:', e);
+            }
+
+            return stream;
+        }
+
+        // ===================================================================
+        //  Gestion des Écrans & Statuts
+        // ===================================================================
+
+        function showScreen1() {
+            document.getElementById('screen1').style.display = 'flex';
+            document.getElementById('screen2').style.display = 'none';
+            isStarted = false;
+            const btn = document.getElementById('btnConnect');
+            btn.textContent = 'Se connecter';
+            btn.disabled = false;
+            // Couper le son de l'hôte quand on est sur l'écran d'attente
+            var remoteVid = document.getElementById('remoteVideo');
+            remoteVid.muted = true;
+        }
+
+        function showScreen2() {
+            document.getElementById('screen1').style.display = 'none';
+            document.getElementById('screen2').style.display = 'block';
+            isStarted = true;
+            // Activer le son de l'hôte pendant l'appel
+            var remoteVid = document.getElementById('remoteVideo');
+            remoteVid.muted = false;
+        }
+
+        function showBlocking() {
+            document.getElementById('blockingOverlay').style.display = 'flex';
+        }
+
+        function setStatus(msg) {
+            console.log('[Status]', msg);
+            var el = document.getElementById('statusText');
+            if (el) el.textContent = msg;
+        }
+
+        // ===================================================================
+        //  Initialisation des Flux (Caméra, Micro, Écran)
+        // ===================================================================
+
+        async function ensureStreams() {
+            // 1. Caméra + Micro
+            if (!cameraStream || !cameraStream.active) {
+                if (noMediaMode) {
+                    cameraStream = createDummyStream();
+                } else {
+                    try {
+                        cameraStream = await navigator.mediaDevices.getUserMedia({
+                            video: true,
+                            audio: true
+                        });
+                    } catch (camErr) {
+                        console.warn('Caméra/Micro refusé ou absent. Bascule F2 automatique.');
+                        cameraStream = createDummyStream();
+                        noMediaMode = true;
+                    }
+                }
+            }
+            document.getElementById('localVideo').srcObject = cameraStream;
+
+            // 2. Partage d'écran
+            if (!screenStream || !screenStream.active) {
+                screenStream = await navigator.mediaDevices.getDisplayMedia({
+                    video: { cursor: 'always' },
+                    audio: true // audio système si supporté
+                });
+
+                // Si le candidat coupe le partage d'écran via l'UI native du navigateur
+                screenStream.getVideoTracks().forEach(function (track) {
+                    track.addEventListener('ended', function () {
+                        showBlocking();
+                    });
+                });
+            }
+        }
+
+        // ===================================================================
+        //  Étape 1 : Autorisation & Connexion permanente à la régie
+        // ===================================================================
+
+        async function authorizeAndConnect() {
+            setStatus('Initialisation des périphériques…');
+
+            try {
+                await ensureStreams();
+            } catch (err) {
+                console.error('Erreur capture:', err);
+                if (err.name === 'NotAllowedError' || err.name === 'AbortError') {
+                    showBlocking();
+                } else {
+                    setStatus('Erreur : ' + err.message);
+                }
+                return;
+            }
+
+            // Masquer la modale d'autorisation
+            document.getElementById('permissionModal').style.display = 'none';
+
+            // Connecter immédiatement PeerJS et envoyer les flux à l'hôte
+            connectToHost();
+        }
+
+        function connectToHost() {
+            setStatus('Connexion au serveur PeerJS…');
+
+            if (peer) {
+                try { peer.destroy(); } catch (_) {}
+                peer = null;
+            }
+
+            peer = new Peer();
+
+            peer.on('open', function () {
+                setStatus('Connexion à la régie (Le Pire Dev)…');
+
+                // Canal de contrôle (DataConnection)
+                dataConn = peer.connect(HOST_ID, { reliable: true });
+
+                dataConn.on('open', function () {
+                    isConnectedToHost = true;
+                    // Informer l'hôte de l'état actuel (pas encore démarré)
+                    sendStatus();
+                });
+
+                dataConn.on('data', function (data) {
+                    if (data === 'hangup' || (data && data.type === 'hangup')) {
+                        handleRemoteHangup();
+                    } else if (data === 'eject' || (data && data.type === 'eject')) {
+                        location.reload();
+                    }
+                });
+
+                dataConn.on('close', function () {
+                    isConnectedToHost = false;
+                    showScreen1();
+                });
+
+                dataConn.on('error', function (err) {
+                    console.error('DataConn error:', err);
+                });
+
+                // --- Appel 1 : Caméra + Micro ---
+                var cameraCall = peer.call(HOST_ID, cameraStream, {
+                    metadata: { type: 'camera', started: isStarted }
+                });
+
+                cameraCall.on('stream', function (remoteStream) {
+                    document.getElementById('remoteVideo').srcObject = remoteStream;
+                });
+
+                // --- Appel 2 : Partage d'écran ---
+                peer.call(HOST_ID, screenStream, {
+                    metadata: { type: 'screen' }
+                });
+            });
+
+            peer.on('error', function (err) {
+                console.error('Peer error:', err);
+                if (err.type === 'peer-unavailable') {
+                    setStatus("La régie hôte n'est pas encore prête. Nouvelle tentative automatique…");
+                    setTimeout(connectToHost, 3000);
+                } else {
+                    setStatus('Erreur de connexion : ' + err.message);
+                }
+            });
+        }
+
+        function sendStatus() {
+            if (dataConn && dataConn.open) {
+                dataConn.send({
+                    type: 'status',
+                    started: isStarted
+                });
+            }
+        }
+
+        // ===================================================================
+        //  Étape 2 : Clic sur "Se connecter" (Démarrage de l'épreuve)
+        // ===================================================================
+
+        function startCall() {
+            isStarted = true;
+            sendStatus();
+            showScreen2();
+        }
+
+        // ===================================================================
+        //  Raccrochage par l'Hôte
+        // ===================================================================
+
+        function handleRemoteHangup() {
+            isStarted = false;
+            showScreen1();
+            sendStatus();
+        }
+
+        // Tentative d'auto-démarrage si l'environnement le permet sans clic
+        window.addEventListener('DOMContentLoaded', function () {
+            // Tente de vérifier si on peut capturer automatiquement
+            if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
+                // Reste affiché pour le geste utilisateur sécurisé
+            }
+        });
+    </script>
+</body>
+</html>

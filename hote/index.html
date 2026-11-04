@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Le Pire Dev — Régie Hôte</title>
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #FFFFFF;
+            height: 100vh;
+            overflow: hidden;
+            color: #111;
+        }
+
+        /* ===================================================================
+           1. Écran d'attente (Aucun candidat connecté)
+        =================================================================== */
+        #waitingScreen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            text-align: center;
+            padding: 40px;
+        }
+        .host-logo-tag {
+            background: #eef0ff;
+            color: #0000ac;
+            font-weight: 800;
+            font-size: 13px;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            padding: 6px 16px;
+            border-radius: 20px;
+            margin-bottom: 16px;
+            border: 1px solid rgba(0, 0, 172, 0.2);
+        }
+        #waitingScreen h1 {
+            color: #0000ac;
+            font-size: 36px;
+            font-weight: 900;
+            margin-bottom: 16px;
+            letter-spacing: -0.5px;
+        }
+        .waiting-status {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: #666;
+            font-size: 18px;
+            font-weight: 500;
+        }
+        .pulse-dot {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #0000ac;
+            animation: pulse-anim 1.8s ease-in-out infinite;
+        }
+        @keyframes pulse-anim {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.25; transform: scale(0.75); }
+        }
+
+        .host-preview-waiting {
+            margin-top: 36px;
+            width: 280px;
+            border: 3px solid #0000ac;
+            border-radius: 14px;
+            overflow: hidden;
+            background: #111;
+            box-shadow: 0 8px 24px rgba(0, 0, 172, 0.15);
+        }
+        .host-preview-waiting video {
+            width: 100%;
+            display: block;
+            transform: scaleX(-1);
+        }
+        .preview-label {
+            color: #888;
+            font-size: 13px;
+            margin-top: 10px;
+        }
+        .hint-f2 {
+            margin-top: 14px;
+            color: #666;
+            font-size: 13px;
+        }
+        .hint-f2 kbd {
+            background: #f0f0f0;
+            border: 1px solid #ccc;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: 700;
+            color: #0000ac;
+        }
+        #errorMsg {
+            color: #c00;
+            font-size: 14px;
+            margin-top: 18px;
+            min-height: 22px;
+            font-weight: 600;
+        }
+
+        /* ===================================================================
+           2. Vue Pré-Session (Candidat connecté mais PAS encore cliqué)
+        =================================================================== */
+        #preSessionScreen {
+            display: none;
+            flex-direction: column;
+            width: 100vw;
+            height: 100vh;
+            background: #f7f8fc;
+        }
+
+        .presession-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 24px;
+            background: #FFFFFF;
+            border-bottom: 2px solid #e2e5f1;
+            z-index: 20;
+        }
+        .presession-alert {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .badge-warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+            font-weight: 800;
+            font-size: 13px;
+            padding: 6px 14px;
+            border-radius: 20px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .presession-text h3 {
+            color: #0000ac;
+            font-size: 16px;
+            font-weight: 800;
+        }
+        .presession-text p {
+            color: #666;
+            font-size: 12px;
+        }
+
+        .presession-body {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 20px;
+            padding: 20px;
+            overflow: hidden;
+        }
+
+        .presession-panel {
+            background: #FFFFFF;
+            border: 2px solid #0000ac;
+            border-radius: 14px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 4px 16px rgba(0, 0, 172, 0.08);
+        }
+        .panel-header {
+            background: #0000ac;
+            color: #fff;
+            padding: 10px 16px;
+            font-size: 14px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .panel-video-wrap {
+            flex: 1;
+            background: #000;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .panel-video-wrap video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .audio-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            background: rgba(255, 255, 255, 0.2);
+            padding: 3px 10px;
+            border-radius: 12px;
+        }
+        .audio-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #4ade80;
+            animation: pulse-anim 1s infinite;
+        }
+
+        /* ===================================================================
+           3. Vue Session En Direct (Candidat a cliqué sur "Se connecter")
+        =================================================================== */
+        #liveScreen {
+            display: none;
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background: #000;
+        }
+
+        .control-bar {
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 24px;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.75) 0%, transparent 100%);
+            z-index: 30;
+        }
+
+        .live-status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: #0000ac;
+            color: #fff;
+            padding: 7px 16px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+        }
+        .live-status-badge .red-dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            background: #ff3b30;
+            animation: pulse-anim 1s infinite;
+        }
+
+        .mode-toggles {
+            display: flex;
+            gap: 10px;
+        }
+        .btn-mode {
+            background: rgba(0, 0, 0, 0.45);
+            backdrop-filter: blur(8px);
+            color: rgba(255, 255, 255, 0.9);
+            border: 2px solid #0000ac;
+            padding: 9px 20px;
+            font-size: 14px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 700;
+            transition: all .2s;
+        }
+        .btn-mode:hover {
+            background: rgba(0, 0, 172, 0.4);
+            color: #fff;
+        }
+        .btn-mode.active {
+            background: #0000ac;
+            color: #fff;
+        }
+
+        .btn-hangup {
+            background: #0000ac;
+            color: #fff;
+            border: 2px solid #0000ac;
+            padding: 10px 24px;
+            font-size: 14px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 800;
+            transition: opacity .2s;
+        }
+        .btn-hangup:hover {
+            opacity: 0.88;
+        }
+
+        /* Vidéos en mode direct */
+        .video-main {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            background: #000;
+            z-index: 1;
+            transition: all .3s ease;
+        }
+        .video-pip {
+            position: absolute;
+            bottom: 28px;
+            left: 28px;
+            width: 340px;
+            aspect-ratio: 16/9;
+            object-fit: contain;
+            border: 3px solid #0000ac;
+            border-radius: 12px;
+            z-index: 10;
+            background: #111;
+            box-shadow: 0 6px 28px rgba(0, 0, 0, 0.65);
+            cursor: pointer;
+            transition: all .3s ease;
+        }
+        .video-pip:hover {
+            transform: scale(1.03);
+        }
+
+        /* Retour régie hôte */
+        .host-pip {
+            position: absolute;
+            bottom: 28px;
+            right: 28px;
+            width: 200px;
+            border: 3px solid #0000ac;
+            border-radius: 12px;
+            overflow: hidden;
+            z-index: 10;
+            background: #111;
+            box-shadow: 0 6px 28px rgba(0, 0, 0, 0.65);
+        }
+        .host-pip video {
+            width: 100%;
+            display: block;
+            transform: scaleX(-1);
+        }
+        .host-pip-label {
+            position: absolute;
+            bottom: 4px;
+            left: 6px;
+            background: rgba(0, 0, 0, 0.6);
+            color: #fff;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- =================================================================
+       1. Écran d'attente (Aucun candidat connecté)
+    ================================================================== -->
+    <div id="waitingScreen">
+        <div class="host-logo-tag">Régie Principale</div>
+        <h1>Le Pire Dev — Hôte</h1>
+        <div class="waiting-status">
+            <div class="pulse-dot"></div>
+            <span>En attente de connexion d'un candidat…</span>
+        </div>
+        <div class="host-preview-waiting">
+            <video id="hostPreviewWaiting" autoplay muted playsinline></video>
+        </div>
+        <p class="preview-label">Votre caméra régie</p>
+        <p class="hint-f2">Astuce : Appuyez sur <kbd>F2</kbd> pour activer la régie sans caméra ni micro.</p>
+        <p id="errorMsg"></p>
+    </div>
+
+    <!-- =================================================================
+       2. Vue Pré-Session (Candidat connecté mais N'A PAS encore cliqué sur Se connecter)
+    ================================================================== -->
+    <div id="preSessionScreen">
+        <div class="presession-bar">
+            <div class="presession-alert">
+                <div class="badge-warning">⏳ PRÉ-SESSION</div>
+                <div class="presession-text">
+                    <h3>Le candidat est connecté — Il n'a PAS ENCORE cliqué sur « Se connecter »</h3>
+                    <p>Ses flux sont actifs ci-dessous en régie de surveillance. L'écran d'accueil est affiché chez lui.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="presession-body">
+            <!-- Partage d'écran en grand -->
+            <div class="presession-panel">
+                <div class="panel-header">
+                    <span>🖥️ Partage d'écran du candidat (Pré-session)</span>
+                    <span style="font-size: 12px; opacity: 0.85;">Flux en direct</span>
+                </div>
+                <div class="panel-video-wrap">
+                    <video id="preScreenVideo" autoplay playsinline></video>
+                </div>
+            </div>
+
+            <!-- Caméra du candidat + Micro -->
+            <div class="presession-panel">
+                <div class="panel-header">
+                    <span>📹 Caméra du candidat</span>
+                    <div class="audio-indicator">
+                        <div class="audio-dot"></div>
+                        <span>Micro actif</span>
+                    </div>
+                </div>
+                <div class="panel-video-wrap">
+                    <video id="preCameraVideo" autoplay playsinline></video>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- =================================================================
+       3. Vue Session En Direct (Candidat a cliqué sur "Se connecter")
+    ================================================================== -->
+    <div id="liveScreen">
+        <div class="control-bar">
+            <div class="live-status-badge">
+                <div class="red-dot"></div>
+                <span>LE PIRE DEV — SESSION EN DIRECT</span>
+            </div>
+
+            <div class="mode-toggles">
+                <button class="btn-mode active" id="btnModeA" onclick="setMode('A')">📹 Caméra en grand</button>
+                <button class="btn-mode" id="btnModeB" onclick="setMode('B')">🖥️ Écran en grand</button>
+            </div>
+
+            <button class="btn-hangup" onclick="hangup()">📞 Raccrocher / Candidat suivant</button>
+        </div>
+
+        <!-- Flux vidéo dynamique selon le mode A ou B -->
+        <video id="liveCameraVideo" class="video-main" autoplay playsinline></video>
+        <video id="liveScreenVideo" class="video-pip" autoplay playsinline></video>
+
+        <!-- Retour caméra régie -->
+        <div class="host-pip">
+            <video id="hostPreviewLive" autoplay muted playsinline></video>
+            <div class="host-pip-label">Régie Hôte</div>
+        </div>
+    </div>
+
+    <script>
+        // ===================================================================
+        //  Configuration
+        // ===================================================================
+        const HOST_ID = 'ETML-LePireDev-2026';
+
+        // ===================================================================
+        //  État
+        // ===================================================================
+        let peer = null;
+        let hostStream = null;
+        let noMediaMode = false;     // F2 = sans caméra/micro
+
+        // Session en cours
+        let currentDataConn = null;
+        let currentCalls = [];
+        let currentInvitePeerId = null;
+        let candidateStarted = false; // true quand le candidat a cliqué sur "Se connecter"
+        let mode = 'A';              // A = Caméra en grand, B = Écran en grand
+
+        // Flux reçus du candidat
+        let remoteCameraStream = null;
+        let remoteScreenStream = null;
+
+        // ===================================================================
+        //  F2 — Mode sans caméra ni micro pour l'Hôte
+        // ===================================================================
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'F2') {
+                e.preventDefault();
+                if (!noMediaMode) {
+                    noMediaMode = true;
+                    hostStream = createDummyStream();
+                    document.getElementById('hostPreviewWaiting').srcObject = hostStream;
+                    document.getElementById('hostPreviewLive').srcObject = hostStream;
+                    document.getElementById('errorMsg').textContent =
+                        '⚡ Mode sans caméra/micro activé pour la régie (F2)';
+                    document.getElementById('errorMsg').style.color = '#0000ac';
+                    if (!peer) createPeer();
+                }
+            }
+        });
+
+        function createDummyStream() {
+            var canvas = document.createElement('canvas');
+            canvas.width = 640;
+            canvas.height = 480;
+            var ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#111';
+            ctx.fillRect(0, 0, 640, 480);
+            var stream = canvas.captureStream(1);
+
+            try {
+                var audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                var oscillator = audioCtx.createOscillator();
+                var dst = oscillator.connect(audioCtx.createMediaStreamDestination());
+                oscillator.start();
+                var audioTrack = dst.stream.getAudioTracks()[0];
+                audioTrack.enabled = false;
+                stream.addTrack(audioTrack);
+            } catch (e) {
+                console.warn('AudioContext dummy track régie:', e);
+            }
+
+            return stream;
+        }
+
+        // ===================================================================
+        //  Affichage selon l'état
+        // ===================================================================
+
+        function updateView() {
+            var waitingEl = document.getElementById('waitingScreen');
+            var preEl = document.getElementById('preSessionScreen');
+            var liveEl = document.getElementById('liveScreen');
+
+            if (!currentInvitePeerId) {
+                // Aucun invité connecté
+                waitingEl.style.display = 'flex';
+                preEl.style.display = 'none';
+                liveEl.style.display = 'none';
+            } else if (!candidateStarted) {
+                // Invité connecté mais N'A PAS encore cliqué sur "Se connecter"
+                waitingEl.style.display = 'none';
+                preEl.style.display = 'flex';
+                liveEl.style.display = 'none';
+
+                // Lier les flux à la disposition Pré-session
+                if (remoteScreenStream) {
+                    document.getElementById('preScreenVideo').srcObject = remoteScreenStream;
+                }
+                if (remoteCameraStream) {
+                    document.getElementById('preCameraVideo').srcObject = remoteCameraStream;
+                }
+            } else {
+                // Invité a cliqué sur "Se connecter" (En direct)
+                waitingEl.style.display = 'none';
+                preEl.style.display = 'none';
+                liveEl.style.display = 'block';
+
+                applyLiveMode();
+            }
+        }
+
+        function applyLiveMode() {
+            document.getElementById('btnModeA').classList.toggle('active', mode === 'A');
+            document.getElementById('btnModeB').classList.toggle('active', mode === 'B');
+
+            var cam = document.getElementById('liveCameraVideo');
+            var scr = document.getElementById('liveScreenVideo');
+
+            if (remoteCameraStream) cam.srcObject = remoteCameraStream;
+            if (remoteScreenStream) scr.srcObject = remoteScreenStream;
+
+            if (mode === 'A') {
+                cam.className = 'video-main';
+                scr.className = 'video-pip';
+            } else {
+                scr.className = 'video-main';
+                cam.className = 'video-pip';
+            }
+        }
+
+        function setMode(m) {
+            mode = m;
+            applyLiveMode();
+        }
+
+        // ===================================================================
+        //  Initialisation
+        // ===================================================================
+
+        async function init() {
+            try {
+                hostStream = await navigator.mediaDevices.getUserMedia({
+                    video: true,
+                    audio: true
+                });
+                document.getElementById('hostPreviewWaiting').srcObject = hostStream;
+                document.getElementById('hostPreviewLive').srcObject = hostStream;
+            } catch (err) {
+                console.error('Erreur caméra/micro hôte:', err);
+                document.getElementById('errorMsg').textContent =
+                    "Caméra/micro non détecté. Appuyez sur [F2] pour démarrer la régie sans caméra ni micro.";
+                return;
+            }
+
+            createPeer();
+        }
+
+        function createPeer() {
+            peer = new Peer(HOST_ID);
+
+            peer.on('open', function (id) {
+                console.log('Régie prête sur ID:', id);
+                document.getElementById('errorMsg').textContent = '';
+            });
+
+            peer.on('error', function (err) {
+                console.error('Peer error:', err);
+                if (err.type === 'unavailable-id') {
+                    document.getElementById('errorMsg').textContent =
+                        'ID régie déjà occupé. Nouvelle tentative dans 4 s…';
+                    setTimeout(function () {
+                        document.getElementById('errorMsg').textContent = '';
+                        createPeer();
+                    }, 4000);
+                } else {
+                    document.getElementById('errorMsg').textContent = 'Erreur PeerJS : ' + err.message;
+                }
+            });
+
+            // Canal de données (contrôle et détection d'état)
+            peer.on('connection', function (conn) {
+                if (currentInvitePeerId && conn.peer !== currentInvitePeerId) {
+                    try { conn.close(); } catch (_) {}
+                    return;
+                }
+
+                currentInvitePeerId = conn.peer;
+                currentDataConn = conn;
+
+                conn.on('data', function (data) {
+                    console.log('Message reçu du candidat:', data);
+                    if (data && data.type === 'status') {
+                        candidateStarted = !!data.started;
+                        updateView();
+                    }
+                });
+
+                conn.on('close', function () {
+                    console.log('Connexion candidat fermée');
+                    resetSession();
+                });
+
+                conn.on('error', function (err) {
+                    console.error('Data conn error:', err);
+                    resetSession();
+                });
+
+                updateView();
+            });
+
+            // Réception des flux multimédias
+            peer.on('call', function (call) {
+                if (currentInvitePeerId && call.peer !== currentInvitePeerId) {
+                    try { call.close(); } catch (_) {}
+                    return;
+                }
+
+                if (!currentInvitePeerId) {
+                    currentInvitePeerId = call.peer;
+                }
+
+                handleIncomingCall(call);
+            });
+
+            peer.on('disconnected', function () {
+                if (peer && !peer.destroyed) peer.reconnect();
+            });
+        }
+
+        // ===================================================================
+        //  Gestion des Appels Entrants
+        // ===================================================================
+
+        function handleIncomingCall(call) {
+            var type = (call.metadata && call.metadata.type) || 'camera';
+            console.log('Appel entrant type:', type, 'depuis:', call.peer);
+
+            if (type === 'camera') {
+                call.answer(hostStream);
+                call.on('stream', function (stream) {
+                    remoteCameraStream = stream;
+                    updateView();
+                });
+            } else if (type === 'screen') {
+                call.answer(); // receive-only
+                call.on('stream', function (stream) {
+                    remoteScreenStream = stream;
+                    updateView();
+                });
+            }
+
+            call.on('close', function () {
+                console.log('Appel fermé:', type);
+            });
+            call.on('error', function (err) {
+                console.error('Call error (' + type + '):', err);
+            });
+
+            currentCalls.push(call);
+            updateView();
+        }
+
+        // ===================================================================
+        //  Raccrocher / Retour Pré-session & Déconnexion
+        // ===================================================================
+
+        /** Raccroche la session en direct : renvoie le candidat sur "Se connecter" et remet l'hôte en pré-session */
+        function hangup() {
+            if (currentDataConn && currentDataConn.open) {
+                try {
+                    currentDataConn.send({ type: 'hangup' });
+                } catch (_) {}
+            }
+            // Repasse l'état en pré-session sans couper les flux
+            candidateStarted = false;
+            updateView();
+        }
+
+        /** Déconnecte complètement le poste (ex: fin d'épreuve pour changer de candidat) */
+        function ejectSession() {
+            if (currentDataConn && currentDataConn.open) {
+                try {
+                    currentDataConn.send({ type: 'eject' });
+                } catch (_) {}
+            }
+            setTimeout(resetSession, 200);
+        }
+
+        function resetSession() {
+            if (currentDataConn) {
+                try { currentDataConn.close(); } catch (_) {}
+                currentDataConn = null;
+            }
+
+            currentCalls.forEach(function (c) {
+                try { c.close(); } catch (_) {}
+            });
+            currentCalls = [];
+            currentInvitePeerId = null;
+            candidateStarted = false;
+            remoteCameraStream = null;
+            remoteScreenStream = null;
+            mode = 'A';
+
+            document.getElementById('preScreenVideo').srcObject = null;
+            document.getElementById('preCameraVideo').srcObject = null;
+            document.getElementById('liveCameraVideo').srcObject = null;
+            document.getElementById('liveScreenVideo').srcObject = null;
+
+            updateView();
+        }
+
+        // Démarrage
+        init();
+    </script>
+</body>
+</html>
