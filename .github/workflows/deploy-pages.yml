@@ -1,0 +1,54 @@
+name: Déploiement GitHub Pages + Token Agora
+
+on:
+  push:
+    branches: [ main ]
+  schedule:
+    - cron: '0 */12 * * *' # Renouvelle automatiquement le token toutes les 12 h
+  workflow_dispatch:       # Permet de lancer manuellement depuis l'onglet Actions
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Générer le token Agora (24 h)
+        env:
+          AGORA_APP_ID: 7c0daed91de14d8d882b8110007de248
+          AGORA_APP_CERTIFICATE: ${{ secrets.AGORA_APP_CERTIFICATE }}
+        run: |
+          mkdir -p dist/hote
+          cp index.html dist/index.html
+          cp hote/index.html dist/hote/index.html
+          node .github/scripts/gen-token.js
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './dist'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

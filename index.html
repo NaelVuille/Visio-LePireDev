@@ -364,7 +364,6 @@
         // ===================================================================
         const APP_ID = '7c0daed91de14d8d882b8110007de248';
         const CHANNEL = 'LePireDev';
-        const TOKEN_WORKER_URL = 'https://turn-lepiredev.ps00xbh.workers.dev/';
 
         const HOST_UID = 100;
         const INVITE_CAM_UID = 200;
@@ -375,16 +374,16 @@
             return m ? decodeURIComponent(m[1]) : null;
         }
 
-        async function fetchAgoraToken(uid) {
+        async function fetchAgoraToken() {
             var manual = getManualToken();
             if (manual) return manual;
             try {
-                var r = await fetch(TOKEN_WORKER_URL + '?channel=' + encodeURIComponent(CHANNEL) + '&uid=' + uid);
+                var r = await fetch('./token.json?t=' + Date.now(), { cache: 'no-store' });
                 if (!r.ok) return null;
                 var d = await r.json();
                 return d.token || null;
             } catch (e) {
-                console.warn('Impossible de récupérer le token Agora:', e);
+                console.warn('Impossible de charger token.json:', e);
                 return null;
             }
         }
