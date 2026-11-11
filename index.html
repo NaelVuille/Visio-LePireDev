@@ -667,6 +667,10 @@
                 if (err.type === 'peer-unavailable') {
                     setStatus("La régie hôte n'est pas encore prête. Nouvelle tentative automatique…");
                     setTimeout(connectToHost, 3000);
+                } else if (['network', 'server-error', 'socket-error', 'socket-closed'].indexOf(err.type) !== -1) {
+                    // Perte de connexion au serveur PeerJS : nouvelle tentative automatique
+                    setStatus('Connexion au serveur perdue — nouvelle tentative…');
+                    setTimeout(connectToHost, 3000);
                 } else {
                     setStatus('Erreur de connexion : ' + err.message);
                 }

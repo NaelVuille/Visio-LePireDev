@@ -721,6 +721,11 @@
                         document.getElementById('errorMsg').textContent = '';
                         createPeer();
                     }, 4000);
+                } else if (['network', 'server-error', 'socket-error', 'socket-closed'].indexOf(err.type) !== -1) {
+                    // Perte de connexion au serveur PeerJS : reconnexion automatique
+                    document.getElementById('errorMsg').style.color = '#0000ac';
+                    document.getElementById('errorMsg').textContent = 'Connexion au serveur perdue — reconnexion en cours…';
+                    scheduleReconnect();
                 } else {
                     document.getElementById('errorMsg').textContent = 'Erreur PeerJS : ' + err.message;
                 }
@@ -787,8 +792,27 @@
             });
 
             peer.on('disconnected', function () {
-                if (peer && !peer.destroyed) peer.reconnect();
+                document.getElementById('errorMsg').style.color = '#0000ac';
+                document.getElementById('errorMsg').textContent = 'Connexion au serveur perdue — reconnexion en cours…';
+                scheduleReconnect();
             });
+        }
+
+        // Reconnexion automatique au serveur PeerJS (réessaie toutes les 3 s jusqu'au succès)
+        var reconnectTimer = null;
+        function scheduleReconnect() {
+            if (reconnectTimer) return;
+            reconnectTimer = setTimeout(function () {
+                reconnectTimer = null;
+                if (!peer) return;
+                if (peer.destroyed) {
+                    createPeer();                      // pair détruit : on en recrée un avec le même ID
+                } else if (peer.disconnected) {
+                    try { peer.reconnect(); } catch (_) {}
+                    // si toujours déconnecté dans 5 s, on réessaie
+                    setTimeout(function () { if (peer && peer.disconnected) scheduleReconnect(); }, 5000);
+                }
+            }, 3000);
         }
 
         // ===================================================================
