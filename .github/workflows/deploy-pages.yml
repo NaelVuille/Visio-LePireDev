@@ -36,6 +36,7 @@ jobs:
           AGORA_APP_ID: 7c0daed91de14d8d882b8110007de248
           AGORA_APP_CERTIFICATE: ${{ secrets.AGORA_APP_CERTIFICATE }}
         run: |
+          npm install --no-save agora-token@2.0.7
           mkdir -p dist/hote
           cp index.html dist/index.html
           cp hote/index.html dist/hote/index.html
