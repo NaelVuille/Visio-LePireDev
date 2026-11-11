@@ -17,27 +17,32 @@ if (!/^[0-9a-fA-F]{32}$/.test(APP_CERT)) {
   process.exit(1);
 }
 
-const token = RtcTokenBuilder.buildTokenWithUid(
-  APP_ID,
-  APP_CERT,
-  CHANNEL,
-  0,
-  RtcRole.PUBLISHER,
-  EXPIRE_SECONDS,
-  EXPIRE_SECONDS
-);
-
-if (!token) {
-  console.error('Erreur: token vide généré par agora-token.');
-  process.exit(1);
+function makeToken(uid) {
+  return RtcTokenBuilder.buildTokenWithUid(
+    APP_ID,
+    APP_CERT,
+    CHANNEL,
+    uid,
+    RtcRole.PUBLISHER,
+    EXPIRE_SECONDS,
+    EXPIRE_SECONDS
+  );
 }
+
+const tokens = {
+  '0': makeToken(0),
+  '100': makeToken(100), // Hôte
+  '200': makeToken(200), // Invité caméra/micro
+  '201': makeToken(201), // Invité partage d'écran
+};
 
 const outDir = path.join(process.cwd(), 'dist');
 fs.mkdirSync(outDir, { recursive: true });
 fs.writeFileSync(
   path.join(outDir, 'token.json'),
   JSON.stringify({
-    token,
+    token: tokens['0'],
+    tokens,
     channel: CHANNEL,
     generatedAt: new Date().toISOString(),
     expiresIn: EXPIRE_SECONDS,

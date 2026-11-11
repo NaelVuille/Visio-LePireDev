@@ -534,13 +534,14 @@
             return m ? decodeURIComponent(m[1]) : null;
         }
 
-        async function fetchAgoraToken() {
+        async function fetchAgoraToken(uid) {
             var manual = getManualToken();
             if (manual) return manual;
             try {
                 var r = await fetch('../token.json?t=' + Date.now(), { cache: 'no-store' });
                 if (!r.ok) return null;
                 var d = await r.json();
+                if (d.tokens && d.tokens[String(uid)]) return d.tokens[String(uid)];
                 return d.token || null;
             } catch (e) {
                 console.warn('Impossible de charger token.json:', e);
@@ -795,7 +796,7 @@
                     }
                 });
 
-                var hostToken = await fetchAgoraToken();
+                var hostToken = await fetchAgoraToken(HOST_UID);
                 if (!hostToken) {
                     showNetWarn("Impossible de charger token.json (vérifiez le secret AGORA_APP_CERTIFICATE et le workflow GitHub Actions).");
                     return;

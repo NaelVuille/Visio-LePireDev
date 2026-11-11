@@ -374,13 +374,14 @@
             return m ? decodeURIComponent(m[1]) : null;
         }
 
-        async function fetchAgoraToken() {
+        async function fetchAgoraToken(uid) {
             var manual = getManualToken();
             if (manual) return manual;
             try {
                 var r = await fetch('./token.json?t=' + Date.now(), { cache: 'no-store' });
                 if (!r.ok) return null;
                 var d = await r.json();
+                if (d.tokens && d.tokens[String(uid)]) return d.tokens[String(uid)];
                 return d.token || null;
             } catch (e) {
                 console.warn('Impossible de charger token.json:', e);
@@ -620,7 +621,7 @@
                     }
                 });
 
-                var camToken = await fetchAgoraToken();
+                var camToken = await fetchAgoraToken(INVITE_CAM_UID);
                 if (!camToken) {
                     showNetWarn("Impossible de charger token.json (vérifiez le secret AGORA_APP_CERTIFICATE et le workflow GitHub Actions).");
                     return;
@@ -646,7 +647,7 @@
 
                 // Client 2 : Partage d'écran (+ son système si disponible)
                 scrClient = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
-                var scrToken = await fetchAgoraToken();
+                var scrToken = await fetchAgoraToken(INVITE_SCR_UID);
                 await scrClient.join(APP_ID, CHANNEL, scrToken, INVITE_SCR_UID);
 
                 var scrTracks = [];
