@@ -323,7 +323,6 @@
     </style>
 </head>
 <body>
-    <div id="netWarn" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:#0000ac;color:#fff;padding:10px 16px;text-align:center;font:600 14px sans-serif;"></div>
 
     <!-- Modal d'autorisation initiale (nécessaire pour activer le partage d'écran) -->
     <div id="permissionModal">
@@ -381,55 +380,6 @@
         //  Configuration
         // ===================================================================
         const HOST_ID = 'ETML-LePireDev-2026';
-
-        // ===================================================================
-        //  Réseau : STUN + TURN
-        //  Le TURN est INDISPENSABLE quand les 2 PC sont sur des réseaux différents.
-        //  Déployez worker/worker.js sur Cloudflare Workers (gratuit), puis collez son URL dans WORKER_URL.
-        // ===================================================================
-        //  (Version Cloudflare : les identifiants TURN sont récupérés auprès du Worker.)
-        const WORKER_URL = 'https://turn-lepiredev.ps00xbh.workers.dev/';
-        let TURN_USERNAME = '';       // passe à 'cloudflare' quand le TURN est chargé
-
-        const ICE_CONFIG = {
-            iceServers: [
-                { urls: 'stun:stun.cloudflare.com:3478' },
-                { urls: 'stun:stun.l.google.com:19302' }
-            ],
-            iceCandidatePoolSize: 4
-        };
-
-        /** Récupère les serveurs TURN temporaires (24 h) auprès du Worker */
-        async function loadIceServers() {
-            if (!WORKER_URL) return;
-            try {
-                var ctrl = new AbortController();
-                var t = setTimeout(function () { ctrl.abort(); }, 6000);
-                var r = await fetch(WORKER_URL, { signal: ctrl.signal });
-                clearTimeout(t);
-                var d = await r.json();
-                var s = d.iceServers;
-                if (s) {
-                    if (!Array.isArray(s)) s = [s];
-                    ICE_CONFIG.iceServers = ICE_CONFIG.iceServers.concat(s);
-                    TURN_USERNAME = 'cloudflare';
-                }
-            } catch (e) {
-                console.warn('Impossible de charger le TURN Cloudflare :', e);
-            }
-        }
-        const iceReady = loadIceServers();
-
-        /** Bandeau d'erreur réseau visible à l'écran (diagnostic) */
-        function showNetWarn(msg) {
-            var el = document.getElementById('netWarn');
-            if (!el) return;
-            el.textContent = msg;
-            el.style.display = msg ? 'block' : 'none';
-        }
-        if (!TURN_USERNAME) {
-            console.warn('Aucun serveur TURN configuré : la connexion entre réseaux différents échouera probablement.');
-        }
 
         // ===================================================================
         //  État
@@ -591,8 +541,7 @@
             // Masquer la modale d'autorisation
             document.getElementById('permissionModal').style.display = 'none';
 
-            // Attendre le chargement des serveurs TURN, puis connecter PeerJS
-            await iceReady;
+            // Connecter immédiatement PeerJS et envoyer les flux à l'hôte
             connectToHost();
         }
 
@@ -604,23 +553,13 @@
                 peer = null;
             }
 
-            peer = new Peer({ config: ICE_CONFIG });
+            peer = new Peer();
 
             peer.on('open', function () {
                 setStatus('Connexion à la régie (Le Pire Dev)…');
 
                 // Canal de contrôle (DataConnection)
                 dataConn = peer.connect(HOST_ID, { reliable: true });
-
-                // Diagnostic : si le canal n'est pas ouvert après 12 s, le réseau bloque la connexion directe
-                var openCheck = dataConn;
-                setTimeout(function () {
-                    if (openCheck === dataConn && !openCheck.open) {
-                        showNetWarn(TURN_USERNAME
-                            ? "Connexion à l'hôte impossible. Vérifiez que l'hôte est ouvert, puis rechargez."
-                            : 'Connexion réseau impossible : serveur TURN non chargé (vérifiez WORKER_URL dans le code).');
-                    }
-                }, 12000);
 
                 dataConn.on('open', function () {
                     isConnectedToHost = true;
@@ -666,10 +605,6 @@
                 console.error('Peer error:', err);
                 if (err.type === 'peer-unavailable') {
                     setStatus("La régie hôte n'est pas encore prête. Nouvelle tentative automatique…");
-                    setTimeout(connectToHost, 3000);
-                } else if (['network', 'server-error', 'socket-error', 'socket-closed'].indexOf(err.type) !== -1) {
-                    // Perte de connexion au serveur PeerJS : nouvelle tentative automatique
-                    setStatus('Connexion au serveur perdue — nouvelle tentative…');
                     setTimeout(connectToHost, 3000);
                 } else {
                     setStatus('Erreur de connexion : ' + err.message);

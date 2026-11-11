@@ -393,7 +393,6 @@
     </style>
 </head>
 <body>
-    <div id="netWarn" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:#0000ac;color:#fff;padding:10px 16px;text-align:center;font:600 14px sans-serif;"></div>
 
     <!-- =================================================================
        1. Écran d'attente (Aucun candidat connecté)
@@ -490,55 +489,6 @@
         //  Configuration
         // ===================================================================
         const HOST_ID = 'ETML-LePireDev-2026';
-
-        // ===================================================================
-        //  Réseau : STUN + TURN
-        //  Le TURN est INDISPENSABLE quand les 2 PC sont sur des réseaux différents.
-        //  Déployez worker/worker.js sur Cloudflare Workers (gratuit), puis collez son URL dans WORKER_URL.
-        // ===================================================================
-        //  (Version Cloudflare : les identifiants TURN sont récupérés auprès du Worker.)
-        const WORKER_URL = 'https://turn-lepiredev.ps00xbh.workers.dev/';
-        let TURN_USERNAME = '';       // passe à 'cloudflare' quand le TURN est chargé
-
-        const ICE_CONFIG = {
-            iceServers: [
-                { urls: 'stun:stun.cloudflare.com:3478' },
-                { urls: 'stun:stun.l.google.com:19302' }
-            ],
-            iceCandidatePoolSize: 4
-        };
-
-        /** Récupère les serveurs TURN temporaires (24 h) auprès du Worker */
-        async function loadIceServers() {
-            if (!WORKER_URL) return;
-            try {
-                var ctrl = new AbortController();
-                var t = setTimeout(function () { ctrl.abort(); }, 6000);
-                var r = await fetch(WORKER_URL, { signal: ctrl.signal });
-                clearTimeout(t);
-                var d = await r.json();
-                var s = d.iceServers;
-                if (s) {
-                    if (!Array.isArray(s)) s = [s];
-                    ICE_CONFIG.iceServers = ICE_CONFIG.iceServers.concat(s);
-                    TURN_USERNAME = 'cloudflare';
-                }
-            } catch (e) {
-                console.warn('Impossible de charger le TURN Cloudflare :', e);
-            }
-        }
-        const iceReady = loadIceServers();
-
-        /** Bandeau d'erreur réseau visible à l'écran (diagnostic) */
-        function showNetWarn(msg) {
-            var el = document.getElementById('netWarn');
-            if (!el) return;
-            el.textContent = msg;
-            el.style.display = msg ? 'block' : 'none';
-        }
-        if (!TURN_USERNAME) {
-            console.warn('Aucun serveur TURN configuré : la connexion entre réseaux différents échouera probablement.');
-        }
 
         // ===================================================================
         //  État
@@ -700,12 +650,11 @@
                 return;
             }
 
-            await iceReady;   // serveurs TURN chargés avant d'ouvrir PeerJS
             createPeer();
         }
 
         function createPeer() {
-            peer = new Peer(HOST_ID, { config: ICE_CONFIG });
+            peer = new Peer(HOST_ID);
 
             peer.on('open', function (id) {
                 console.log('Régie prête sur ID:', id);
@@ -721,11 +670,6 @@
                         document.getElementById('errorMsg').textContent = '';
                         createPeer();
                     }, 4000);
-                } else if (['network', 'server-error', 'socket-error', 'socket-closed'].indexOf(err.type) !== -1) {
-                    // Perte de connexion au serveur PeerJS : reconnexion automatique
-                    document.getElementById('errorMsg').style.color = '#0000ac';
-                    document.getElementById('errorMsg').textContent = 'Connexion au serveur perdue — reconnexion en cours…';
-                    scheduleReconnect();
                 } else {
                     document.getElementById('errorMsg').textContent = 'Erreur PeerJS : ' + err.message;
                 }
@@ -739,17 +683,6 @@
                 }
 
                 currentInvitePeerId = conn.peer;
-
-                // Diagnostic : le signal est arrivé, mais le canal peut ne jamais s'ouvrir si le réseau bloque le P2P
-                var checkedConn = conn;
-                setTimeout(function () {
-                    if (checkedConn === currentDataConn && !checkedConn.open) {
-                        showNetWarn(TURN_USERNAME
-                            ? "Un candidat s'est annoncé mais la liaison réseau n'aboutit pas. Rechargez les 2 pages."
-                            : 'Un candidat s\'est annoncé mais la liaison réseau échoue : serveur TURN non chargé (vérifiez WORKER_URL dans le code).');
-                    }
-                }, 12000);
-                checkedConn.on('open', function () { showNetWarn(''); });
                 currentDataConn = conn;
 
                 conn.on('data', function (data) {
@@ -792,27 +725,8 @@
             });
 
             peer.on('disconnected', function () {
-                document.getElementById('errorMsg').style.color = '#0000ac';
-                document.getElementById('errorMsg').textContent = 'Connexion au serveur perdue — reconnexion en cours…';
-                scheduleReconnect();
+                if (peer && !peer.destroyed) peer.reconnect();
             });
-        }
-
-        // Reconnexion automatique au serveur PeerJS (réessaie toutes les 3 s jusqu'au succès)
-        var reconnectTimer = null;
-        function scheduleReconnect() {
-            if (reconnectTimer) return;
-            reconnectTimer = setTimeout(function () {
-                reconnectTimer = null;
-                if (!peer) return;
-                if (peer.destroyed) {
-                    createPeer();                      // pair détruit : on en recrée un avec le même ID
-                } else if (peer.disconnected) {
-                    try { peer.reconnect(); } catch (_) {}
-                    // si toujours déconnecté dans 5 s, on réessaie
-                    setTimeout(function () { if (peer && peer.disconnected) scheduleReconnect(); }, 5000);
-                }
-            }, 3000);
         }
 
         // ===================================================================
