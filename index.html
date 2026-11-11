@@ -177,6 +177,44 @@
             box-shadow: none;
         }
 
+        /* ========== Animation de chargement / connexion ========== */
+        #loadingBox {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 18px;
+            margin-top: 8px;
+        }
+        .spinner {
+            width: 54px;
+            height: 54px;
+            border: 5px solid #e6e8f8;
+            border-top-color: #0000ac;
+            border-radius: 50%;
+            animation: spin 0.9s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .loading-label {
+            color: #0000ac;
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: 0.2px;
+        }
+        .loading-dots::after {
+            content: '';
+            animation: dots 1.5s steps(4, end) infinite;
+        }
+        @keyframes dots {
+            0%   { content: ''; }
+            25%  { content: '.'; }
+            50%  { content: '..'; }
+            75%  { content: '...'; }
+            100% { content: ''; }
+        }
+
         .status-container {
             margin-top: 28px;
             display: flex;
@@ -318,6 +356,10 @@
             Prêt pour l'activité ? Cliquez sur le bouton ci-dessous pour démarrer.
         </p>
         <button id="btnConnect" onclick="startCall()">Se connecter</button>
+        <div id="loadingBox">
+            <div class="spinner"></div>
+            <div class="loading-label">Connexion en cours<span class="loading-dots"></span></div>
+        </div>
     </div>
 
     <!-- Écran 2 — En direct (Appel lancé) -->
@@ -326,7 +368,7 @@
             <div class="red-dot"></div>
             <span>LE PIRE DEV — EN DIRECT</span>
         </div>
-        <video id="remoteVideo" autoplay playsinline></video>
+        <video id="remoteVideo" autoplay muted playsinline></video>
         <div class="local-pip">
             <video id="localVideo" autoplay muted playsinline></video>
             <div class="local-pip-label">Votre caméra</div>
@@ -346,7 +388,7 @@
         let screenStream = null;
         let peer = null;
         let dataConn = null;
-        let isStarted = false;       // true quand le candidat clique sur "Se connecter"
+        let clientState = 'idle';    // 'idle' | 'waiting_host' | 'live'
         let noMediaMode = false;     // F2 = sans caméra ni micro
         let isConnectedToHost = false;
 
@@ -395,21 +437,33 @@
         // ===================================================================
 
         function showScreen1() {
+            clientState = 'idle';
             document.getElementById('screen1').style.display = 'flex';
             document.getElementById('screen2').style.display = 'none';
-            isStarted = false;
             const btn = document.getElementById('btnConnect');
             btn.textContent = 'Se connecter';
+            btn.style.display = 'inline-block';
             btn.disabled = false;
+            document.getElementById('loadingBox').style.display = 'none';
             // Couper le son de l'hôte quand on est sur l'écran d'attente
             var remoteVid = document.getElementById('remoteVideo');
             remoteVid.muted = true;
         }
 
+        function showWaitingHost() {
+            clientState = 'waiting_host';
+            document.getElementById('screen1').style.display = 'flex';
+            document.getElementById('screen2').style.display = 'none';
+            document.getElementById('btnConnect').style.display = 'none';
+            document.getElementById('loadingBox').style.display = 'flex';
+            document.getElementById('remoteVideo').muted = true;
+        }
+
         function showScreen2() {
+            clientState = 'live';
             document.getElementById('screen1').style.display = 'none';
             document.getElementById('screen2').style.display = 'block';
-            isStarted = true;
+            document.getElementById('loadingBox').style.display = 'none';
             // Activer le son de l'hôte pendant l'appel
             var remoteVid = document.getElementById('remoteVideo');
             remoteVid.muted = false;
@@ -514,7 +568,9 @@
                 });
 
                 dataConn.on('data', function (data) {
-                    if (data === 'hangup' || (data && data.type === 'hangup')) {
+                    if (data === 'host_ready' || (data && data.type === 'host_ready')) {
+                        showScreen2();
+                    } else if (data === 'hangup' || (data && data.type === 'hangup')) {
                         handleRemoteHangup();
                     } else if (data === 'eject' || (data && data.type === 'eject')) {
                         location.reload();
@@ -532,7 +588,7 @@
 
                 // --- Appel 1 : Caméra + Micro ---
                 var cameraCall = peer.call(HOST_ID, cameraStream, {
-                    metadata: { type: 'camera', started: isStarted }
+                    metadata: { type: 'camera', state: clientState }
                 });
 
                 cameraCall.on('stream', function (remoteStream) {
@@ -560,19 +616,19 @@
             if (dataConn && dataConn.open) {
                 dataConn.send({
                     type: 'status',
-                    started: isStarted
+                    state: clientState,
+                    started: clientState === 'live'
                 });
             }
         }
 
         // ===================================================================
-        //  Étape 2 : Clic sur "Se connecter" (Démarrage de l'épreuve)
+        //  Étape 2 : Clic sur "Se connecter" -> Attente de validation Hôte ("Prêt")
         // ===================================================================
 
         function startCall() {
-            isStarted = true;
+            showWaitingHost();
             sendStatus();
-            showScreen2();
         }
 
         // ===================================================================
@@ -580,7 +636,6 @@
         // ===================================================================
 
         function handleRemoteHangup() {
-            isStarted = false;
             showScreen1();
             sendStatus();
         }

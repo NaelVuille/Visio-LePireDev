@@ -144,6 +144,42 @@
             align-items: center;
             gap: 6px;
         }
+        .badge-waiting-host {
+            background: #eef0ff;
+            color: #0000ac;
+            border: 1px solid #0000ac;
+            font-weight: 800;
+            font-size: 13px;
+            padding: 6px 14px;
+            border-radius: 20px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .btn-ready {
+            display: none;
+            align-items: center;
+            gap: 8px;
+            background: #0000ac;
+            color: #fff;
+            border: none;
+            padding: 12px 34px;
+            font-size: 16px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 800;
+            box-shadow: 0 4px 18px rgba(0, 0, 172, 0.35);
+            animation: ready-pulse 1.5s ease-in-out infinite;
+            transition: transform .15s, opacity .15s;
+        }
+        .btn-ready:hover {
+            opacity: 0.92;
+            transform: scale(1.03);
+        }
+        @keyframes ready-pulse {
+            0%, 100% { box-shadow: 0 4px 18px rgba(0, 0, 172, 0.35); }
+            50% { box-shadow: 0 4px 28px rgba(0, 0, 172, 0.75); }
+        }
         .presession-text h3 {
             color: #0000ac;
             font-size: 16px;
@@ -382,12 +418,13 @@
     <div id="preSessionScreen">
         <div class="presession-bar">
             <div class="presession-alert">
-                <div class="badge-warning">⏳ PRÉ-SESSION</div>
+                <div class="badge-warning" id="preBadge">⏳ PRÉ-SESSION</div>
                 <div class="presession-text">
-                    <h3>Le candidat est connecté — Il n'a PAS ENCORE cliqué sur « Se connecter »</h3>
-                    <p>Ses flux sont actifs ci-dessous en régie de surveillance. L'écran d'accueil est affiché chez lui.</p>
+                    <h3 id="preTitle">Le candidat est connecté — Il n'a PAS ENCORE cliqué sur « Se connecter »</h3>
+                    <p id="preSubtitle">Ses flux sont actifs ci-dessous en régie de surveillance. L'écran d'accueil est affiché chez lui.</p>
                 </div>
             </div>
+            <button id="btnReady" class="btn-ready" onclick="hostReady()">✅ Prêt</button>
         </div>
 
         <div class="presession-body">
@@ -464,7 +501,7 @@
         let currentDataConn = null;
         let currentCalls = [];
         let currentInvitePeerId = null;
-        let candidateStarted = false; // true quand le candidat a cliqué sur "Se connecter"
+        let candidateState = 'idle'; // 'idle' | 'waiting_host' | 'live'
         let mode = 'A';              // A = Caméra en grand, B = Écran en grand
 
         // Flux reçus du candidat
@@ -528,8 +565,8 @@
                 waitingEl.style.display = 'flex';
                 preEl.style.display = 'none';
                 liveEl.style.display = 'none';
-            } else if (!candidateStarted) {
-                // Invité connecté mais N'A PAS encore cliqué sur "Se connecter"
+            } else if (candidateState !== 'live') {
+                // Invité en pré-session ou en attente du clic "Prêt" de l'hôte
                 waitingEl.style.display = 'none';
                 preEl.style.display = 'flex';
                 liveEl.style.display = 'none';
@@ -541,8 +578,27 @@
                 if (remoteCameraStream) {
                     document.getElementById('preCameraVideo').srcObject = remoteCameraStream;
                 }
+
+                var badgeEl = document.getElementById('preBadge');
+                var titleEl = document.getElementById('preTitle');
+                var subEl = document.getElementById('preSubtitle');
+                var btnReady = document.getElementById('btnReady');
+
+                if (candidateState === 'waiting_host') {
+                    badgeEl.className = 'badge-waiting-host';
+                    badgeEl.textContent = '🔔 CONNEXION DEMANDÉE';
+                    titleEl.textContent = 'Le candidat a cliqué sur « Se connecter » !';
+                    subEl.textContent = "Il voit l'animation de connexion. Cliquez sur « Prêt » pour démarrer la session.";
+                    btnReady.style.display = 'inline-flex';
+                } else {
+                    badgeEl.className = 'badge-warning';
+                    badgeEl.textContent = '⏳ PRÉ-SESSION';
+                    titleEl.textContent = "Le candidat est connecté — Il n'a PAS ENCORE cliqué sur « Se connecter »";
+                    subEl.textContent = "Ses flux sont actifs ci-dessous en régie de surveillance. L'écran d'accueil est affiché chez lui.";
+                    btnReady.style.display = 'none';
+                }
             } else {
-                // Invité a cliqué sur "Se connecter" (En direct)
+                // Hôte a cliqué sur "Prêt" -> Session en direct
                 waitingEl.style.display = 'none';
                 preEl.style.display = 'none';
                 liveEl.style.display = 'block';
@@ -632,7 +688,11 @@
                 conn.on('data', function (data) {
                     console.log('Message reçu du candidat:', data);
                     if (data && data.type === 'status') {
-                        candidateStarted = !!data.started;
+                        if (data.state) {
+                            candidateState = data.state;
+                        } else {
+                            candidateState = data.started ? 'live' : 'idle';
+                        }
                         updateView();
                     }
                 });
@@ -706,6 +766,17 @@
         //  Raccrocher / Retour Pré-session & Déconnexion
         // ===================================================================
 
+        /** L'hôte clique sur "Prêt" : débloque l'animation de chargement du client et lance le direct */
+        function hostReady() {
+            if (currentDataConn && currentDataConn.open) {
+                try {
+                    currentDataConn.send({ type: 'host_ready' });
+                } catch (_) {}
+            }
+            candidateState = 'live';
+            updateView();
+        }
+
         /** Raccroche la session en direct : renvoie le candidat sur "Se connecter" et remet l'hôte en pré-session */
         function hangup() {
             if (currentDataConn && currentDataConn.open) {
@@ -713,8 +784,8 @@
                     currentDataConn.send({ type: 'hangup' });
                 } catch (_) {}
             }
-            // Repasse l'état en pré-session sans couper les flux
-            candidateStarted = false;
+            // Repasse l'état en pré-session sans couper les flux (masque le bouton "Prêt" jusqu'au prochain clic)
+            candidateState = 'idle';
             updateView();
         }
 
@@ -739,7 +810,7 @@
             });
             currentCalls = [];
             currentInvitePeerId = null;
-            candidateStarted = false;
+            candidateState = 'idle';
             remoteCameraStream = null;
             remoteScreenStream = null;
             mode = 'A';
