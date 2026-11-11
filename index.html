@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Le Pire Dev — Candidat</title>
-    <script src="https://download.agora.io/sdk/release/AgoraRTC_N-4.22.0.js"></script>
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -14,19 +14,6 @@
             height: 100vh;
             overflow: hidden;
             color: #111;
-        }
-
-        /* ========== Bandeau diagnostic réseau ========== */
-        #netWarn {
-            display: none;
-            position: fixed;
-            top: 0; left: 0; right: 0;
-            z-index: 9999;
-            background: #0000ac;
-            color: #fff;
-            padding: 10px 16px;
-            text-align: center;
-            font: 600 14px sans-serif;
         }
 
         /* ========== Modal d'autorisation initiale (requis pour le partage d'écran) ========== */
@@ -228,9 +215,40 @@
             100% { content: ''; }
         }
 
+        .status-container {
+            margin-top: 28px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+        }
+        .stream-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #0000ac;
+            background: #f0f2ff;
+            padding: 6px 16px;
+            border-radius: 30px;
+        }
+        .stream-badge .dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            background: #0000ac;
+            animation: pulse-dot 1.8s infinite;
+        }
         @keyframes pulse-dot {
             0%, 100% { opacity: 1; transform: scale(1); }
             50% { opacity: 0.3; transform: scale(0.8); }
+        }
+
+        #statusText {
+            color: #666;
+            font-size: 14px;
+            min-height: 20px;
         }
 
         /* ========== Écran 2 — En Direct (Appel) ========== */
@@ -305,7 +323,7 @@
     </style>
 </head>
 <body>
-    <div id="netWarn"></div>
+    <div id="netWarn" style="display:none;position:fixed;top:0;left:0;right:0;z-index:9999;background:#0000ac;color:#fff;padding:10px 16px;text-align:center;font:600 14px sans-serif;"></div>
 
     <!-- Modal d'autorisation initiale (nécessaire pour activer le partage d'écran) -->
     <div id="permissionModal">
@@ -360,55 +378,60 @@
 
     <script>
         // ===================================================================
-        //  Configuration Agora (Serveur central SFU — sans P2P)
+        //  Configuration
         // ===================================================================
-        const APP_ID = '7c0daed91de14d8d882b8110007de248';
-        const CHANNEL = 'LePireDev';
-
-        const HOST_UID = 100;
-        const INVITE_CAM_UID = 200;
-        const INVITE_SCR_UID = 201;
-
-        function getManualToken() {
-            var m = location.search.match(/[?&]token=([^&]+)/);
-            return m ? decodeURIComponent(m[1]) : null;
-        }
-
-        async function fetchAgoraToken(uid) {
-            var manual = getManualToken();
-            if (manual) return manual;
-            try {
-                var r = await fetch('./token.json?t=' + Date.now(), { cache: 'no-store' });
-                if (!r.ok) return null;
-                var d = await r.json();
-                if (d.tokens && d.tokens[String(uid)]) return d.tokens[String(uid)];
-                return d.token || null;
-            } catch (e) {
-                console.warn('Impossible de charger token.json:', e);
-                return null;
-            }
-        }
-
-        AgoraRTC.setLogLevel(2); // warnings & errors only
+        const HOST_ID = 'ETML-LePireDev-2026';
 
         // ===================================================================
-        //  État
+        //  Réseau : STUN + TURN
+        //  Le TURN est INDISPENSABLE quand les 2 PC sont sur des réseaux différents.
+        //  Créez un compte gratuit (sans carte) sur https://www.expressturn.com/ et renseignez TURN_USERNAME / TURN_PASSWORD.
         // ===================================================================
-        let cameraStream = null;
-        let screenStream = null;
-        let camClient = null;
-        let scrClient = null;
-        let hostAudioTrack = null;
-        let clientState = 'idle';    // 'idle' | 'waiting_host' | 'live'
-        let noMediaMode = false;     // F2 = sans caméra ni micro
-        let isJoined = false;
+        //  (Version Cloudflare : les identifiants TURN sont récupérés auprès du Worker.)
+        const TURN_USERNAME = '';
+        const TURN_PASSWORD = '';
 
+        const ICE_CONFIG = {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun1.l.google.com:19302' }
+            ].concat(TURN_USERNAME && TURN_PASSWORD ? [{
+                urls: [
+                    'turn:free.expressturn.com:3478',
+                    'turn:free.expressturn.com:3478?transport=tcp',
+                    'turn:free.expressturn.com:80',
+                    'turn:free.expressturn.com:80?transport=tcp',
+                    'turn:free.expressturn.com:443',
+                    'turn:free.expressturn.com:443?transport=tcp'
+                ],
+                username: TURN_USERNAME,
+                credential: TURN_PASSWORD
+            }] : []),
+            iceCandidatePoolSize: 4
+        };
+        const iceReady = Promise.resolve();
+
+        /** Bandeau d'erreur réseau visible à l'écran (diagnostic) */
         function showNetWarn(msg) {
             var el = document.getElementById('netWarn');
             if (!el) return;
             el.textContent = msg;
             el.style.display = msg ? 'block' : 'none';
         }
+        if (!TURN_USERNAME) {
+            console.warn('Aucun serveur TURN configuré : la connexion entre réseaux différents échouera probablement.');
+        }
+
+        // ===================================================================
+        //  État
+        // ===================================================================
+        let cameraStream = null;
+        let screenStream = null;
+        let peer = null;
+        let dataConn = null;
+        let clientState = 'idle';    // 'idle' | 'waiting_host' | 'live'
+        let noMediaMode = false;     // F2 = sans caméra ni micro
+        let isConnectedToHost = false;
 
         // ===================================================================
         //  F2 — Raccourci sans caméra/micro
@@ -417,6 +440,8 @@
             if (e.key === 'F2') {
                 e.preventDefault();
                 noMediaMode = true;
+                setStatus('⚡ Mode sans caméra/micro activé (F2)');
+                // Si la modale est encore affichée, lancer l'autorisation avec F2
                 if (document.getElementById('permissionModal').style.display !== 'none') {
                     authorizeAndConnect();
                 }
@@ -431,7 +456,7 @@
             var ctx = canvas.getContext('2d');
             ctx.fillStyle = '#111';
             ctx.fillRect(0, 0, 640, 480);
-            var stream = canvas.captureStream(1);
+            var stream = canvas.captureStream(1); // 1 fps
 
             try {
                 var audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -461,10 +486,9 @@
             btn.style.display = 'inline-block';
             btn.disabled = false;
             document.getElementById('loadingBox').style.display = 'none';
-            document.getElementById('remoteVideo').muted = true;
-            if (hostAudioTrack) {
-                try { hostAudioTrack.setVolume(0); } catch (_) {}
-            }
+            // Couper le son de l'hôte quand on est sur l'écran d'attente
+            var remoteVid = document.getElementById('remoteVideo');
+            remoteVid.muted = true;
         }
 
         function showWaitingHost() {
@@ -474,12 +498,6 @@
             document.getElementById('btnConnect').style.display = 'none';
             document.getElementById('loadingBox').style.display = 'flex';
             document.getElementById('remoteVideo').muted = true;
-            if (hostAudioTrack) {
-                try {
-                    hostAudioTrack.play();
-                    hostAudioTrack.setVolume(0);
-                } catch (_) {}
-            }
         }
 
         function showScreen2() {
@@ -487,17 +505,19 @@
             document.getElementById('screen1').style.display = 'none';
             document.getElementById('screen2').style.display = 'block';
             document.getElementById('loadingBox').style.display = 'none';
-            document.getElementById('remoteVideo').muted = false;
-            if (hostAudioTrack) {
-                try {
-                    hostAudioTrack.play();
-                    hostAudioTrack.setVolume(100);
-                } catch (_) {}
-            }
+            // Activer le son de l'hôte pendant l'appel
+            var remoteVid = document.getElementById('remoteVideo');
+            remoteVid.muted = false;
         }
 
         function showBlocking() {
             document.getElementById('blockingOverlay').style.display = 'flex';
+        }
+
+        function setStatus(msg) {
+            console.log('[Status]', msg);
+            var el = document.getElementById('statusText');
+            if (el) el.textContent = msg;
         }
 
         // ===================================================================
@@ -505,6 +525,7 @@
         // ===================================================================
 
         async function ensureStreams() {
+            // 1. Caméra + Micro
             if (!cameraStream || !cameraStream.active) {
                 if (noMediaMode) {
                     cameraStream = createDummyStream();
@@ -523,12 +544,14 @@
             }
             document.getElementById('localVideo').srcObject = cameraStream;
 
+            // 2. Partage d'écran
             if (!screenStream || !screenStream.active) {
                 screenStream = await navigator.mediaDevices.getDisplayMedia({
                     video: { cursor: 'always' },
-                    audio: true
+                    audio: true // audio système si supporté
                 });
 
+                // Si le candidat coupe le partage d'écran via l'UI native du navigateur
                 screenStream.getVideoTracks().forEach(function (track) {
                     track.addEventListener('ended', function () {
                         showBlocking();
@@ -538,10 +561,12 @@
         }
 
         // ===================================================================
-        //  Étape 1 : Autorisation & Connexion au canal Agora
+        //  Étape 1 : Autorisation & Connexion permanente à la régie
         // ===================================================================
 
         async function authorizeAndConnect() {
+            setStatus('Initialisation des périphériques…');
+
             try {
                 await ensureStreams();
             } catch (err) {
@@ -549,143 +574,107 @@
                 if (err.name === 'NotAllowedError' || err.name === 'AbortError') {
                     showBlocking();
                 } else {
-                    showNetWarn('Erreur média : ' + err.message);
+                    setStatus('Erreur : ' + err.message);
                 }
                 return;
             }
 
+            // Masquer la modale d'autorisation
             document.getElementById('permissionModal').style.display = 'none';
-            connectToAgora();
+
+            // Attendre le chargement des serveurs TURN, puis connecter PeerJS
+            await iceReady;
+            connectToHost();
         }
 
-        async function connectToAgora() {
-            showNetWarn('');
+        function connectToHost() {
+            setStatus('Connexion au serveur PeerJS…');
 
-            try {
-                // Client 1 : Caméra + Micro + Messagerie de contrôle
-                camClient = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
-
-                camClient.on('user-published', async function (user, mediaType) {
-                    if (user.uid !== HOST_UID) return;
-                    await camClient.subscribe(user, mediaType);
-
-                    if (mediaType === 'video' && user.videoTrack) {
-                        document.getElementById('remoteVideo').srcObject =
-                            new MediaStream([user.videoTrack.getMediaStreamTrack()]);
-                    }
-                    if (mediaType === 'audio' && user.audioTrack) {
-                        hostAudioTrack = user.audioTrack;
-                        hostAudioTrack.play();
-                        hostAudioTrack.setVolume(clientState === 'live' ? 100 : 0);
-                    }
-                });
-
-                camClient.on('user-unpublished', function (user, mediaType) {
-                    if (user.uid !== HOST_UID) return;
-                    if (mediaType === 'video') {
-                        document.getElementById('remoteVideo').srcObject = null;
-                    }
-                    if (mediaType === 'audio') {
-                        hostAudioTrack = null;
-                    }
-                });
-
-                camClient.on('user-joined', function (user) {
-                    if (user.uid === HOST_UID) {
-                        sendStatus();
-                    }
-                });
-
-                camClient.on('user-left', function (user) {
-                    if (user.uid === HOST_UID) {
-                        document.getElementById('remoteVideo').srcObject = null;
-                        hostAudioTrack = null;
-                    }
-                });
-
-                camClient.on('stream-message', function (uid, payload) {
-                    if (uid !== HOST_UID) return;
-                    try {
-                        var data = JSON.parse(new TextDecoder().decode(payload));
-                        if (data.type === 'host_ready') {
-                            showScreen2();
-                        } else if (data.type === 'hangup') {
-                            handleRemoteHangup();
-                        } else if (data.type === 'eject') {
-                            location.reload();
-                        } else if (data.type === 'ping_status') {
-                            sendStatus();
-                        }
-                    } catch (e) {
-                        console.warn('Message invalide reçu:', e);
-                    }
-                });
-
-                var camToken = await fetchAgoraToken(INVITE_CAM_UID);
-                if (!camToken) {
-                    showNetWarn("Impossible de charger token.json (vérifiez le secret AGORA_APP_CERTIFICATE et le workflow GitHub Actions).");
-                    return;
-                }
-                await camClient.join(APP_ID, CHANNEL, camToken, INVITE_CAM_UID);
-                isJoined = true;
-
-                // Publier caméra + micro
-                var camTracks = [];
-                if (cameraStream.getVideoTracks()[0]) {
-                    camTracks.push(AgoraRTC.createCustomVideoTrack({
-                        mediaStreamTrack: cameraStream.getVideoTracks()[0]
-                    }));
-                }
-                if (cameraStream.getAudioTracks()[0]) {
-                    camTracks.push(AgoraRTC.createCustomAudioTrack({
-                        mediaStreamTrack: cameraStream.getAudioTracks()[0]
-                    }));
-                }
-                if (camTracks.length > 0) {
-                    await camClient.publish(camTracks);
-                }
-
-                // Client 2 : Partage d'écran (+ son système si disponible)
-                scrClient = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
-                var scrToken = await fetchAgoraToken(INVITE_SCR_UID);
-                await scrClient.join(APP_ID, CHANNEL, scrToken, INVITE_SCR_UID);
-
-                var scrTracks = [];
-                if (screenStream.getVideoTracks()[0]) {
-                    scrTracks.push(AgoraRTC.createCustomVideoTrack({
-                        mediaStreamTrack: screenStream.getVideoTracks()[0]
-                    }));
-                }
-                if (screenStream.getAudioTracks()[0]) {
-                    scrTracks.push(AgoraRTC.createCustomAudioTrack({
-                        mediaStreamTrack: screenStream.getAudioTracks()[0]
-                    }));
-                }
-                if (scrTracks.length > 0) {
-                    await scrClient.publish(scrTracks);
-                }
-
-                sendStatus();
-            } catch (err) {
-                console.error('Erreur Agora:', err);
-                var msg = (err && err.message) || String(err);
-                showNetWarn('Erreur Agora : ' + msg);
+            if (peer) {
+                try { peer.destroy(); } catch (_) {}
+                peer = null;
             }
+
+            peer = new Peer({ config: ICE_CONFIG });
+
+            peer.on('open', function () {
+                setStatus('Connexion à la régie (Le Pire Dev)…');
+
+                // Canal de contrôle (DataConnection)
+                dataConn = peer.connect(HOST_ID, { reliable: true });
+
+                // Diagnostic : si le canal n'est pas ouvert après 12 s, le réseau bloque la connexion directe
+                var openCheck = dataConn;
+                setTimeout(function () {
+                    if (openCheck === dataConn && !openCheck.open) {
+                        showNetWarn(TURN_USERNAME
+                            ? "Connexion à l'hôte impossible. Vérifiez que l'hôte est ouvert, puis rechargez."
+                            : 'Connexion réseau impossible : identifiants ExpressTURN manquants (TURN_USERNAME / TURN_PASSWORD).');
+                    }
+                }, 12000);
+
+                dataConn.on('open', function () {
+                    isConnectedToHost = true;
+                    // Informer l'hôte de l'état actuel (pas encore démarré)
+                    sendStatus();
+                });
+
+                dataConn.on('data', function (data) {
+                    if (data === 'host_ready' || (data && data.type === 'host_ready')) {
+                        showScreen2();
+                    } else if (data === 'hangup' || (data && data.type === 'hangup')) {
+                        handleRemoteHangup();
+                    } else if (data === 'eject' || (data && data.type === 'eject')) {
+                        location.reload();
+                    }
+                });
+
+                dataConn.on('close', function () {
+                    isConnectedToHost = false;
+                    showScreen1();
+                });
+
+                dataConn.on('error', function (err) {
+                    console.error('DataConn error:', err);
+                });
+
+                // --- Appel 1 : Caméra + Micro ---
+                var cameraCall = peer.call(HOST_ID, cameraStream, {
+                    metadata: { type: 'camera', state: clientState }
+                });
+
+                cameraCall.on('stream', function (remoteStream) {
+                    document.getElementById('remoteVideo').srcObject = remoteStream;
+                });
+
+                // --- Appel 2 : Partage d'écran ---
+                peer.call(HOST_ID, screenStream, {
+                    metadata: { type: 'screen' }
+                });
+            });
+
+            peer.on('error', function (err) {
+                console.error('Peer error:', err);
+                if (err.type === 'peer-unavailable') {
+                    setStatus("La régie hôte n'est pas encore prête. Nouvelle tentative automatique…");
+                    setTimeout(connectToHost, 3000);
+                } else if (['network', 'server-error', 'socket-error', 'socket-closed'].indexOf(err.type) !== -1) {
+                    // Perte de connexion au serveur PeerJS : nouvelle tentative automatique
+                    setStatus('Connexion au serveur perdue — nouvelle tentative…');
+                    setTimeout(connectToHost, 3000);
+                } else {
+                    setStatus('Erreur de connexion : ' + err.message);
+                }
+            });
         }
 
-        async function sendStatus() {
-            if (!camClient || !isJoined) return;
-            try {
-                await camClient.sendStreamMessage({
-                    payload: JSON.stringify({
-                        type: 'status',
-                        state: clientState,
-                        started: clientState === 'live'
-                    }),
-                    syncWithAudio: false
+        function sendStatus() {
+            if (dataConn && dataConn.open) {
+                dataConn.send({
+                    type: 'status',
+                    state: clientState,
+                    started: clientState === 'live'
                 });
-            } catch (e) {
-                console.warn('Envoi statut impossible:', e);
             }
         }
 
@@ -706,6 +695,14 @@
             showScreen1();
             sendStatus();
         }
+
+        // Tentative d'auto-démarrage si l'environnement le permet sans clic
+        window.addEventListener('DOMContentLoaded', function () {
+            // Tente de vérifier si on peut capturer automatiquement
+            if (navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia) {
+                // Reste affiché pour le geste utilisateur sécurisé
+            }
+        });
     </script>
 </body>
 </html>
