@@ -524,11 +524,30 @@
         // ===================================================================
         const APP_ID = '7c0daed91de14d8d882b8110007de248';
         const CHANNEL = 'LePireDev';
-        const TOKEN = new URLSearchParams(location.search).get('token') || null;
+        const TOKEN_WORKER_URL = 'https://turn-lepiredev.ps00xbh.workers.dev/';
 
         const HOST_UID = 100;
         const INVITE_CAM_UID = 200;
         const INVITE_SCR_UID = 201;
+
+        function getManualToken() {
+            var m = location.search.match(/[?&]token=([^&]+)/);
+            return m ? decodeURIComponent(m[1]) : null;
+        }
+
+        async function fetchAgoraToken(uid) {
+            var manual = getManualToken();
+            if (manual) return manual;
+            try {
+                var r = await fetch(TOKEN_WORKER_URL + '?channel=' + encodeURIComponent(CHANNEL) + '&uid=' + uid);
+                if (!r.ok) return null;
+                var d = await r.json();
+                return d.token || null;
+            } catch (e) {
+                console.warn('Impossible de récupérer le token Agora:', e);
+                return null;
+            }
+        }
 
         AgoraRTC.setLogLevel(2);
 
@@ -777,7 +796,8 @@
                     }
                 });
 
-                await hostClient.join(APP_ID, CHANNEL, TOKEN, HOST_UID);
+                var hostToken = await fetchAgoraToken(HOST_UID);
+                await hostClient.join(APP_ID, CHANNEL, hostToken, HOST_UID);
                 isJoined = true;
                 document.getElementById('errorMsg').textContent = '';
 
