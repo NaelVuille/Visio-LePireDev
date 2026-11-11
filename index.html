@@ -620,7 +620,11 @@
                     }
                 });
 
-                var camToken = await fetchAgoraToken(INVITE_CAM_UID);
+                var camToken = await fetchAgoraToken();
+                if (!camToken) {
+                    showNetWarn("Impossible de charger token.json (vérifiez le secret AGORA_APP_CERTIFICATE et le workflow GitHub Actions).");
+                    return;
+                }
                 await camClient.join(APP_ID, CHANNEL, camToken, INVITE_CAM_UID);
                 isJoined = true;
 
@@ -642,7 +646,7 @@
 
                 // Client 2 : Partage d'écran (+ son système si disponible)
                 scrClient = AgoraRTC.createClient({ mode: 'rtc', codec: 'vp8' });
-                var scrToken = await fetchAgoraToken(INVITE_SCR_UID);
+                var scrToken = await fetchAgoraToken();
                 await scrClient.join(APP_ID, CHANNEL, scrToken, INVITE_SCR_UID);
 
                 var scrTracks = [];
@@ -664,11 +668,7 @@
             } catch (err) {
                 console.error('Erreur Agora:', err);
                 var msg = (err && err.message) || String(err);
-                if (msg.indexOf('CAN_NOT_GET_GATEWAY_SERVER') !== -1 || msg.indexOf('token') !== -1) {
-                    showNetWarn("Agora demande un Token : désactivez le Primary Certificate dans Agora Console, ou ajoutez ?token=VOTRE_TOKEN à l'URL.");
-                } else {
-                    showNetWarn('Erreur connexion Agora : ' + msg);
-                }
+                showNetWarn('Erreur Agora : ' + msg);
             }
         }
 

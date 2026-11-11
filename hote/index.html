@@ -795,7 +795,11 @@
                     }
                 });
 
-                var hostToken = await fetchAgoraToken(HOST_UID);
+                var hostToken = await fetchAgoraToken();
+                if (!hostToken) {
+                    showNetWarn("Impossible de charger token.json (vérifiez le secret AGORA_APP_CERTIFICATE et le workflow GitHub Actions).");
+                    return;
+                }
                 await hostClient.join(APP_ID, CHANNEL, hostToken, HOST_UID);
                 isJoined = true;
                 document.getElementById('errorMsg').textContent = '';
@@ -818,11 +822,8 @@
             } catch (err) {
                 console.error('Erreur Agora hôte:', err);
                 var msg = (err && err.message) || String(err);
-                if (msg.indexOf('CAN_NOT_GET_GATEWAY_SERVER') !== -1 || msg.indexOf('token') !== -1) {
-                    showNetWarn("Agora demande un Token : désactivez le Primary Certificate dans Agora Console, ou ajoutez ?token=VOTRE_TOKEN à l'URL.");
-                } else {
-                    document.getElementById('errorMsg').textContent = 'Erreur Agora : ' + msg;
-                }
+                document.getElementById('errorMsg').textContent = 'Erreur Agora : ' + msg;
+                showNetWarn('Erreur Agora : ' + msg);
             }
         }
 
