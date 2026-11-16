@@ -28,7 +28,11 @@ jobs:
         run: |
           mkdir -p dist/hote
           cp index.html dist/index.html
+          cp style.css dist/style.css
+          cp app.js dist/app.js
           cp hote/index.html dist/hote/index.html
+          cp hote/style.css dist/hote/style.css
+          cp hote/app.js dist/hote/app.js
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
