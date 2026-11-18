@@ -156,6 +156,29 @@
             align-items: center;
             gap: 6px;
         }
+        .presession-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .btn-cancel {
+            display: none;
+            align-items: center;
+            gap: 8px;
+            background: #fff;
+            color: #d32f2f;
+            border: 2px solid #d32f2f;
+            padding: 10px 22px;
+            font-size: 15px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 700;
+            transition: all .15s;
+        }
+        .btn-cancel:hover {
+            background: #ffebee;
+            transform: scale(1.02);
+        }
         .btn-ready {
             display: none;
             align-items: center;
@@ -425,7 +448,10 @@
                     <p id="preSubtitle">Ses flux sont actifs ci-dessous en régie de surveillance. L'écran d'accueil est affiché chez lui.</p>
                 </div>
             </div>
-            <button id="btnReady" class="btn-ready" onclick="hostReady()">✅ Prêt</button>
+            <div class="presession-actions">
+                <button id="btnCancel" class="btn-cancel" onclick="hostCancel()">❌ Annuler</button>
+                <button id="btnReady" class="btn-ready" onclick="hostReady()">✅ Prêt</button>
+            </div>
         </div>
 
         <div class="presession-body">
@@ -624,6 +650,7 @@
                 var titleEl = document.getElementById('preTitle');
                 var subEl = document.getElementById('preSubtitle');
                 var btnReady = document.getElementById('btnReady');
+                var btnCancel = document.getElementById('btnCancel');
 
                 if (candidateState === 'waiting_host') {
                     badgeEl.className = 'badge-waiting-host';
@@ -631,12 +658,14 @@
                     titleEl.textContent = 'Le candidat a cliqué sur « Se connecter » !';
                     subEl.textContent = "Il voit l'animation de connexion. Cliquez sur « Prêt » pour démarrer la session.";
                     btnReady.style.display = 'inline-flex';
+                    btnCancel.style.display = 'inline-flex';
                 } else {
                     badgeEl.className = 'badge-warning';
                     badgeEl.textContent = '⏳ PRÉ-SESSION';
                     titleEl.textContent = "Le candidat est connecté — Il n'a PAS ENCORE cliqué sur « Se connecter »";
                     subEl.textContent = "Ses flux sont actifs ci-dessous en régie de surveillance. L'écran d'accueil est affiché chez lui.";
                     btnReady.style.display = 'none';
+                    btnCancel.style.display = 'none';
                 }
             } else {
                 // Hôte a cliqué sur "Prêt" -> Session en direct
@@ -842,6 +871,17 @@
         // ===================================================================
         //  Raccrocher / Retour Pré-session & Déconnexion
         // ===================================================================
+
+        /** L'hôte clique sur "Annuler" : annule l'attente et réaffiche le bouton "Se connecter" chez le candidat */
+        function hostCancel() {
+            if (currentDataConn && currentDataConn.open) {
+                try {
+                    currentDataConn.send({ type: 'cancel_connect' });
+                } catch (_) {}
+            }
+            candidateState = 'idle';
+            updateView();
+        }
 
         /** L'hôte clique sur "Prêt" : débloque l'animation de chargement du client et lance le direct */
         function hostReady() {

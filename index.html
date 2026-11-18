@@ -620,6 +620,10 @@
                 });
 
                 dataConn.on('data', function (data) {
+                    if (data === 'cancel_connect' || (data && data.type === 'cancel_connect')) {
+                        handleRemoteCancel();
+                        return;
+                    }
                     if (data === 'host_ready' || (data && data.type === 'host_ready')) {
                         showScreen2();
                     } else if (data === 'hangup' || (data && data.type === 'hangup')) {
@@ -690,6 +694,11 @@
         // ===================================================================
         //  Raccrochage par l'Hôte
         // ===================================================================
+
+        function handleRemoteCancel() {
+            showScreen1();
+            sendStatus();
+        }
 
         function handleRemoteHangup() {
             showScreen1();
