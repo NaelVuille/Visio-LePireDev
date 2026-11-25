@@ -1,16 +1,16 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Le Pire Dev — Régie Hôte</title>
+    <title>Le Pire Dev — Hôte</title>
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            background: #FFFFFF;
+            background: rgba(0, 0, 0, 0.85);
             height: 100vh;
             overflow: hidden;
             color: #111;
@@ -30,7 +30,7 @@
         }
         .host-logo-tag {
             background: #eef0ff;
-            color: #0000ac;
+            color: #ffffff;
             font-weight: 800;
             font-size: 13px;
             letter-spacing: 1.5px;
@@ -41,7 +41,7 @@
             border: 1px solid rgba(0, 0, 172, 0.2);
         }
         #waitingScreen h1 {
-            color: #0000ac;
+            color: #ffffff;
             font-size: 36px;
             font-weight: 900;
             margin-bottom: 16px;
@@ -97,7 +97,7 @@
             padding: 2px 6px;
             border-radius: 4px;
             font-weight: 700;
-            color: #0000ac;
+            color: #ffffff;
         }
         #errorMsg {
             color: #c00;
@@ -123,8 +123,9 @@
             align-items: center;
             justify-content: space-between;
             padding: 12px 24px;
-            background: #FFFFFF;
-            border-bottom: 2px solid #e2e5f1;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.15);
             z-index: 20;
         }
         .presession-alert {
@@ -146,7 +147,7 @@
         }
         .badge-waiting-host {
             background: #eef0ff;
-            color: #0000ac;
+            color: #ffffff;
             border: 1px solid #0000ac;
             font-weight: 800;
             font-size: 13px;
@@ -204,12 +205,12 @@
             50% { box-shadow: 0 4px 28px rgba(0, 0, 172, 0.75); }
         }
         .presession-text h3 {
-            color: #0000ac;
+            color: #ffffff;
             font-size: 16px;
             font-weight: 800;
         }
         .presession-text p {
-            color: #666;
+            color: #b0b8c8;
             font-size: 12px;
         }
 
@@ -223,7 +224,7 @@
         }
 
         .presession-panel {
-            background: #FFFFFF;
+            background: rgba(0, 0, 0, 0.85);
             border: 2px solid #0000ac;
             border-radius: 14px;
             overflow: hidden;
@@ -384,7 +385,7 @@
             transform: scale(1.03);
         }
 
-        /* Retour régie hôte */
+        /* Retour caméra hôte */
         .host-pip {
             position: absolute;
             bottom: 28px;
@@ -422,7 +423,7 @@
        1. Écran d'attente (Aucun candidat connecté)
     ================================================================== -->
     <div id="waitingScreen">
-        <div class="host-logo-tag">Régie Principale</div>
+        <div class="host-logo-tag">Poste Hôte</div>
         <h1>Le Pire Dev — Hôte</h1>
         <div class="waiting-status">
             <div class="pulse-dot"></div>
@@ -431,8 +432,8 @@
         <div class="host-preview-waiting">
             <video id="hostPreviewWaiting" autoplay muted playsinline></video>
         </div>
-        <p class="preview-label">Votre caméra régie</p>
-        <p class="hint-f2">Astuce : Appuyez sur <kbd>F2</kbd> pour activer la régie sans caméra ni micro.</p>
+        <p class="preview-label">Votre caméra</p>
+        <p class="hint-f2">Astuce : Appuyez sur <kbd>F2</kbd> pour démarrer sans caméra ni micro.</p>
         <p id="errorMsg"></p>
     </div>
 
@@ -445,7 +446,7 @@
                 <div class="badge-warning" id="preBadge">⏳ PRÉ-SESSION</div>
                 <div class="presession-text">
                     <h3 id="preTitle">Le candidat est connecté — Il n'a PAS ENCORE cliqué sur « Se connecter »</h3>
-                    <p id="preSubtitle">Ses flux sont actifs ci-dessous en régie de surveillance. L'écran d'accueil est affiché chez lui.</p>
+                    <p id="preSubtitle">Ses flux sont actifs ci-dessous en surveillance. L'écran d'accueil est affiché chez lui.</p>
                 </div>
             </div>
             <div class="presession-actions">
@@ -504,10 +505,10 @@
         <video id="liveCameraVideo" class="video-main" autoplay playsinline></video>
         <video id="liveScreenVideo" class="video-pip" autoplay playsinline></video>
 
-        <!-- Retour caméra régie -->
+        <!-- Retour camÃ©ra hÃ´te -->
         <div class="host-pip">
             <video id="hostPreviewLive" autoplay muted playsinline></video>
-            <div class="host-pip-label">Régie Hôte</div>
+            <div class="host-pip-label">Hôte</div>
         </div>
     </div>
 
@@ -587,7 +588,7 @@
                     document.getElementById('hostPreviewWaiting').srcObject = hostStream;
                     document.getElementById('hostPreviewLive').srcObject = hostStream;
                     document.getElementById('errorMsg').textContent =
-                        '⚡ Mode sans caméra/micro activé pour la régie (F2)';
+                        '⚡ Mode sans caméra/micro activé pour l'hÃ´te (F2)';
                     document.getElementById('errorMsg').style.color = '#0000ac';
                     if (!peer) createPeer();
                 }
@@ -612,7 +613,7 @@
                 audioTrack.enabled = false;
                 stream.addTrack(audioTrack);
             } catch (e) {
-                console.warn('AudioContext dummy track régie:', e);
+                console.warn('AudioContext dummy track hÃ´te:', e);
             }
 
             return stream;
@@ -663,7 +664,7 @@
                     badgeEl.className = 'badge-warning';
                     badgeEl.textContent = '⏳ PRÉ-SESSION';
                     titleEl.textContent = "Le candidat est connecté — Il n'a PAS ENCORE cliqué sur « Se connecter »";
-                    subEl.textContent = "Ses flux sont actifs ci-dessous en régie de surveillance. L'écran d'accueil est affiché chez lui.";
+                    subEl.textContent = "Ses flux sont actifs ci-dessous en surveillance. L'écran d'accueil est affiché chez lui.";
                     btnReady.style.display = 'none';
                     btnCancel.style.display = 'none';
                 }
@@ -716,7 +717,7 @@
             } catch (err) {
                 console.error('Erreur caméra/micro hôte:', err);
                 document.getElementById('errorMsg').textContent =
-                    "Caméra/micro non détecté. Appuyez sur [F2] pour démarrer la régie sans caméra ni micro.";
+                    "Caméra/micro non détecté. Appuyez sur [F2] pour démarrer sans caméra ni micro.";
                 return;
             }
 
@@ -728,7 +729,7 @@
             peer = new Peer(HOST_ID, { config: ICE_CONFIG });
 
             peer.on('open', function (id) {
-                console.log('Régie prête sur ID:', id);
+                console.log('Hôte prêt sur ID:', id);
                 document.getElementById('errorMsg').textContent = '';
             });
 
@@ -736,7 +737,7 @@
                 console.error('Peer error:', err);
                 if (err.type === 'unavailable-id') {
                     document.getElementById('errorMsg').textContent =
-                        'ID régie déjà occupé. Nouvelle tentative dans 4 s…';
+                        'ID hôte déjà occupé. Nouvelle tentative dans 4 s…';
                     setTimeout(function () {
                         document.getElementById('errorMsg').textContent = '';
                         createPeer();

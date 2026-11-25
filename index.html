@@ -267,7 +267,37 @@
             background: #000;
         }
 
-        .live-tag {
+        .control-bar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 60px;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(10px);
+            display: flex;
+            align-items: center;
+            padding: 0 24px;
+            z-index: 100;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+        }
+        .live-status-badge {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #fff;
+            font-size: 14px;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+        }
+        .live-status-badge .red-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #ff3b30;
+            animation: pulse-dot 1.2s infinite;
+        }
+        .live-tag-unused {
             position: absolute;
             top: 20px;
             left: 24px;
@@ -365,7 +395,13 @@
 
     <!-- Écran 2 — En direct (Appel lancé) -->
     <div id="screen2">
-        <div class="live-tag">
+        <div class="control-bar">
+            <div class="live-status-badge">
+                <div class="red-dot"></div>
+                <span>LE PIRE DEV — SESSION EN DIRECT</span>
+            </div>
+        </div>
+        <div style="display:none;" class="live-tag">
             <div class="red-dot"></div>
             <span>LE PIRE DEV — EN DIRECT</span>
         </div>
@@ -561,7 +597,7 @@
         }
 
         // ===================================================================
-        //  Étape 1 : Autorisation & Connexion permanente à la régie
+        //  Étape 1 : Autorisation & Connexion permanente à l'hôte
         // ===================================================================
 
         async function authorizeAndConnect() {
@@ -598,7 +634,7 @@
             peer = new Peer({ config: ICE_CONFIG });
 
             peer.on('open', function () {
-                setStatus('Connexion à la régie (Le Pire Dev)…');
+                setStatus('Connexion à l\'hôte (Le Pire Dev)…');
 
                 // Canal de contrôle (DataConnection)
                 dataConn = peer.connect(HOST_ID, { reliable: true });
@@ -660,7 +696,7 @@
             peer.on('error', function (err) {
                 console.error('Peer error:', err);
                 if (err.type === 'peer-unavailable') {
-                    setStatus("La régie hôte n'est pas encore prête. Nouvelle tentative automatique…");
+                    setStatus("L'hôte n'est pas encore prêt. Nouvelle tentative automatique…");
                     setTimeout(connectToHost, 3000);
                 } else if (['network', 'server-error', 'socket-error', 'socket-closed'].indexOf(err.type) !== -1) {
                     // Perte de connexion au serveur PeerJS : nouvelle tentative automatique
