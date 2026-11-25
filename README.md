@@ -9,29 +9,25 @@ Ce guide détaille pas à pas le déroulement d'une session de défi en direct e
 
 ```mermaid
 sequenceDiagram
-    autonumber
     actor C as 🧑‍💻 Candidat (Sébeillon)
-    participant UI_C as Client Web Sébeillon
-    participant UI_H as Régie Web Vennes
-    actor H as 🎬 Animateur Régie (Vennes)
+    participant S as Client Sébeillon
+    participant V as Régie Vennes
+    actor H as 🎬 Animateur (Vennes)
 
-    Note over UI_H: 1. Vennes ouvre la régie en attente
-    Note over UI_C: 2. Sébeillon ouvre la page et autorise ses flux
-    UI_C->>UI_H: Connexion P2P/TURN établie en continu (Bureau + Caméra)
-    Note over H,UI_H: 3. L'hôte voit déjà le bureau et la webcam en surveillance discrète
-    C->>UI_C: 4. Le candidat clique sur « Se connecter »
-    UI_C->>UI_H: Notification « Connexion demandée »
-    Note over UI_H: 5. Les boutons [❌ Annuler] et [✅ Prêt] apparaissent
-    alt L'hôte valide la session
-        H->>UI_H: Clic sur « ✅ Prêt »
-        UI_H->>UI_C: Ordre de direct (« host_ready »)
-        Note over C,H: 6. Session Live en direct activée
-        H->>UI_H: 7. Clic sur « 📞 Raccrocher »
-        UI_H->>UI_C: Réinitialisation vers l'écran d'accueil
-    else L'hôte rejette ou annule l'attente
-        H->>UI_H: Clic sur « ❌ Annuler »
-        UI_H->>UI_C: Annulation (« cancel_connect »)
-        Note over UI_C: Le candidat retrouve son bouton « Se connecter »
+    H->>V: 1. Ouvre la régie (en attente)
+    C->>S: 2. Autorise caméra, micro et écran
+    S->>V: 3. Envoi continu du flux (Bureau + Caméra)
+    C->>S: 4. Clic sur « Se connecter »
+    S->>V: 5. Notification « Connexion demandée »
+    
+    alt Option A : L'animateur démarre la session
+        H->>V: 6a. Clic sur « ✅ Prêt »
+        V->>S: 7a. Lancement du direct (Live actif)
+        H->>V: 8a. Clic sur « 📞 Raccrocher »
+        V->>S: 9a. Retour à l'écran d'accueil
+    else Option B : L'animateur refuse ou annule
+        H->>V: 6b. Clic sur « ❌ Annuler »
+        V->>S: 7b. Réinitialise le bouton « Se connecter »
     end
 ```
 
